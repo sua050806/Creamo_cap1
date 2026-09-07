@@ -10,6 +10,8 @@ export default function Header() {
       <nav className="flex items-center gap-6 text-sm">
         <Link href="/category">카테고리</Link>
         <Link href="/cart">장바구니</Link>
+        <Link href="/login">로그인</Link>
+        <Link href="/signup">회원가입</Link>
       </nav>
     </header>
   );
