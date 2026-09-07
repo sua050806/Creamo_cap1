@@ -1,8 +1,8 @@
 const AVATAR_GRADIENTS = [
-  "from-orange-300 to-rose-300",
-  "from-sky-300 to-indigo-300",
-  "from-emerald-300 to-teal-300",
-  "from-fuchsia-300 to-purple-300",
+  "from-zinc-300 to-zinc-500",
+  "from-zinc-400 to-zinc-600",
+  "from-zinc-500 to-zinc-700",
+  "from-zinc-600 to-zinc-800",
 ];
 
 export interface CreatorCardProps {

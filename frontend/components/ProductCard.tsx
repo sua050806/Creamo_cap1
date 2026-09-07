@@ -1,8 +1,8 @@
 const THUMBNAIL_GRADIENTS = [
-  "from-amber-100 to-orange-200",
-  "from-sky-100 to-blue-200",
-  "from-emerald-100 to-teal-200",
-  "from-pink-100 to-rose-200",
+  "from-zinc-100 to-zinc-300",
+  "from-zinc-200 to-zinc-400",
+  "from-zinc-100 to-zinc-200",
+  "from-zinc-200 to-zinc-300",
 ];
 
 export interface ProductCardProps {
