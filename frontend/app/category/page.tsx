@@ -18,8 +18,10 @@ export default function CategoryPage() {
       <div className="mb-6 flex gap-2">
         <button
           onClick={() => setSelectedCategoryId(null)}
-          className={`rounded-full px-3 py-1 text-sm ${
-            selectedCategoryId === null ? "bg-black text-white" : "bg-zinc-100 text-zinc-600"
+          className={`rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors ${
+            selectedCategoryId === null
+              ? "bg-brand text-brand-foreground"
+              : "bg-black/5 text-foreground/60 hover:bg-black/10"
           }`}
         >
           전체
@@ -28,10 +30,10 @@ export default function CategoryPage() {
           <button
             key={category.id}
             onClick={() => setSelectedCategoryId(category.id)}
-            className={`rounded-full px-3 py-1 text-sm ${
+            className={`rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors ${
               selectedCategoryId === category.id
-                ? "bg-black text-white"
-                : "bg-zinc-100 text-zinc-600"
+                ? "bg-brand text-brand-foreground"
+                : "bg-black/5 text-foreground/60 hover:bg-black/10"
             }`}
           >
             {category.name}

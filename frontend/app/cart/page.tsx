@@ -2,7 +2,7 @@
 export default function CartPage() {
   return (
     <main className="flex-1 px-6 py-8">
-      <h1 className="text-xl font-semibold">장바구니</h1>
+      <h1 className="text-2xl font-semibold">장바구니</h1>
     </main>
   );
 }

@@ -5,7 +5,10 @@ import { mockCreators } from "@/lib/mock-data";
 export default function Home() {
   return (
     <main className="flex-1 px-6 py-8">
-      <h1 className="mb-6 text-xl font-semibold">추천 크리에이터</h1>
+      <h1 className="text-2xl font-semibold">추천 크리에이터</h1>
+      <p className="mt-1 mb-6 text-sm text-foreground/60">
+        마음에 드는 크리에이터를 팔로우하고, 그들이 추천하는 상품을 만나보세요.
+      </p>
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
         {mockCreators.map((creator) => (
           <CreatorCard

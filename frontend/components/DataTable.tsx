@@ -16,9 +16,9 @@ export default function DataTable<T extends Record<string, unknown>>({
   return (
     <table className="w-full border-collapse text-sm">
       <thead>
-        <tr className="border-b border-zinc-200 text-left">
+        <tr className="border-b border-black/10 text-left">
           {columns.map((col) => (
-            <th key={String(col.key)} className="py-2 pr-4 font-medium text-zinc-500">
+            <th key={String(col.key)} className="py-2 pr-4 font-medium text-foreground/50">
               {col.header}
             </th>
           ))}
@@ -26,9 +26,9 @@ export default function DataTable<T extends Record<string, unknown>>({
       </thead>
       <tbody>
         {rows.map((row, i) => (
-          <tr key={i} className="border-b border-zinc-100">
+          <tr key={i} className="border-b border-black/5 transition-colors hover:bg-black/[0.02]">
             {columns.map((col) => (
-              <td key={String(col.key)} className="py-2 pr-4">
+              <td key={String(col.key)} className="py-2.5 pr-4">
                 {String(row[col.key])}
               </td>
             ))}
