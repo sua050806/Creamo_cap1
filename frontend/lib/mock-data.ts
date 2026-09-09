@@ -18,6 +18,9 @@ export interface MockProduct {
   price: number;
   categoryId: number;
   vendorName: string;
+  description: string;
+  options: Record<string, string[]>;
+  recommendedCreatorHandle?: string;
 }
 
 export interface MockApplication {
@@ -41,9 +44,36 @@ export const mockCreators: MockCreator[] = [
 ];
 
 export const mockProducts: MockProduct[] = [
-  { id: 1, name: "무선 이어폰", price: 39000, categoryId: 1, vendorName: "OO전자" },
-  { id: 2, name: "저자극 선크림", price: 18000, categoryId: 2, vendorName: "OO코스메틱" },
-  { id: 3, name: "미니 가습기", price: 25000, categoryId: 3, vendorName: "OO리빙" },
+  {
+    id: 1,
+    name: "무선 이어폰",
+    price: 39000,
+    categoryId: 1,
+    vendorName: "OO전자",
+    description: "가볍고 오래 쓰는 무선 이어폰. 한 번 충전으로 최대 8시간 재생.",
+    options: { 색상: ["블랙", "화이트"] },
+    recommendedCreatorHandle: "gil-dong",
+  },
+  {
+    id: 2,
+    name: "저자극 선크림",
+    price: 18000,
+    categoryId: 2,
+    vendorName: "OO코스메틱",
+    description: "민감성 피부도 편하게 쓰는 저자극 선크림, SPF50+.",
+    options: {},
+    recommendedCreatorHandle: "beauty-min",
+  },
+  {
+    id: 3,
+    name: "미니 가습기",
+    price: 25000,
+    categoryId: 3,
+    vendorName: "OO리빙",
+    description: "책상 위에 딱 맞는 사이즈의 미니 가습기.",
+    options: { 색상: ["화이트", "그레이"] },
+    recommendedCreatorHandle: "home-ssam",
+  },
 ];
 
 export const mockApplications: MockApplication[] = [
