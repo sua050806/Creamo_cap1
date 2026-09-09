@@ -1,13 +1,24 @@
 import Link from "next/link";
 
-// 전역 헤더: 내비게이션·검색·장바구니. 2주차에 실제 검색/장바구니 개수 연동 예정, 지금은 뼈대만.
+// 전역 헤더: 내비게이션·검색·장바구니. 검색은 폼 GET 제출로 /category?q=검색어로 이동해서
+// 상품명을 필터링한다(자바스크립트 없이 동작, category/page.tsx에서 처리).
 export default function Header() {
   return (
-    <header className="sticky top-0 z-10 flex items-center justify-between border-b border-black/5 bg-background/80 px-6 py-4 backdrop-blur">
-      <Link href="/" className="text-lg font-bold tracking-tight text-brand">
+    <header className="sticky top-0 z-10 flex items-center justify-between gap-4 border-b border-black/5 bg-background/80 px-6 py-4 backdrop-blur">
+      <Link href="/" className="shrink-0 text-lg font-bold tracking-tight text-brand">
         Creamo
       </Link>
-      <nav className="flex items-center gap-6 text-sm text-foreground/70">
+
+      <form action="/category" method="get" className="w-full max-w-xs">
+        <input
+          type="search"
+          name="q"
+          placeholder="상품 검색"
+          className="w-full rounded-full border border-black/10 bg-white px-4 py-1.5 text-sm outline-none transition-shadow focus:border-brand focus:ring-2 focus:ring-brand/20"
+        />
+      </form>
+
+      <nav className="flex shrink-0 items-center gap-6 text-sm text-foreground/70">
         <Link href="/category" className="transition-colors hover:text-foreground">
           카테고리
         </Link>
