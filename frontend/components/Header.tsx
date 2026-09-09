@@ -9,32 +9,34 @@ export default function Header() {
         Creamo
       </Link>
 
-      <form action="/category" method="get" className="w-full max-w-xs">
-        <input
-          type="search"
-          name="q"
-          placeholder="상품 검색"
-          className="w-full rounded-full border border-black/10 bg-white px-4 py-1.5 text-sm outline-none transition-shadow focus:border-brand focus:ring-2 focus:ring-brand/20"
-        />
-      </form>
+      <div className="ml-auto flex shrink-0 items-center gap-4">
+        <form action="/category" method="get">
+          <input
+            type="search"
+            name="q"
+            placeholder="상품 검색"
+            className="w-40 rounded-full border border-black/10 bg-white px-4 py-1.5 text-sm outline-none transition-shadow focus:w-56 focus:border-brand focus:ring-2 focus:ring-brand/20"
+          />
+        </form>
 
-      <nav className="flex shrink-0 items-center gap-6 text-sm text-foreground/70">
-        <Link href="/category" className="transition-colors hover:text-foreground">
-          카테고리
-        </Link>
-        <Link href="/cart" className="transition-colors hover:text-foreground">
-          장바구니
-        </Link>
-        <Link href="/login" className="transition-colors hover:text-foreground">
-          로그인
-        </Link>
-        <Link
-          href="/signup"
-          className="rounded-full bg-brand px-4 py-1.5 font-medium text-brand-foreground transition-opacity hover:opacity-90"
-        >
-          회원가입
-        </Link>
-      </nav>
+        <nav className="flex items-center gap-6 text-sm text-foreground/70">
+          <Link href="/category" className="transition-colors hover:text-foreground">
+            카테고리
+          </Link>
+          <Link href="/cart" className="transition-colors hover:text-foreground">
+            장바구니
+          </Link>
+          <Link href="/login" className="transition-colors hover:text-foreground">
+            로그인
+          </Link>
+          <Link
+            href="/signup"
+            className="rounded-full bg-brand px-4 py-1.5 font-medium text-brand-foreground transition-opacity hover:opacity-90"
+          >
+            회원가입
+          </Link>
+        </nav>
+      </div>
     </header>
   );
 }
