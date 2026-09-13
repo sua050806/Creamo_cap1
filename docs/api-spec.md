@@ -230,6 +230,13 @@ ADR-014 참고. 판매수·커미션 통계만으로 대시보드 핵심 기능�
 [ { "product_id": 10, "product_name": "무선 이어폰", "sales_count": 8, "commission_total": 39000 } ]
 ```
 
+## 벤더 (제안, 구현 보류)
+
+`GET /vendors/{id}`(프로필), `GET /vendors/{id}/products`(공급 상품 목록) — 크리에이터 쪽
+`GET /creators/{id}`, `GET /creators/{id}/products`와 대칭되는 벤더 전용 공개 API. 지금은 스펙 2.3대로
+벤더가 상품 상세의 배지로만 노출되고 있어 이 API들이 필요 없지만, 벤더 프로필 페이지를 만들게 되면
+추가해야 함 → [decisions.md](decisions.md) ADR-023 참고.
+
 ## 관리자
 
 ### GET /admin/applications

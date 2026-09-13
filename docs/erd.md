@@ -147,6 +147,9 @@ ADR-008 참고. 크리에이터의 관심 분야를 상품 카테고리 체계�
 ### VendorProfile
 User와 연결되는 FK가 없는 독립 테이블 (스펙 2.3: 벤더는 시스템 로그인 계정이 없음). 관리자만 CRUD한다.
 
+**(제안, 구현 보류)** 벤더 프로필 공개 페이지를 만들게 되면 `intro`(소개) 필드를 추가해야 함 —
+지금은 `CreatorProfile.intro`에 해당하는 필드가 없음 → [decisions.md](decisions.md) ADR-023 참고.
+
 ### Category
 `parent`를 자기 자신에 대한 FK(`ForeignKey('self', null=True)`)로 둬서 대분류/소분류 2단 구조를
 표현한다.
