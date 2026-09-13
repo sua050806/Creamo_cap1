@@ -1,4 +1,5 @@
 import ProductSlider from "@/components/ProductSlider";
+import HorizontalSlider from "@/components/HorizontalSlider";
 import { mockCreators, mockProducts } from "@/lib/mock-data";
 
 const AVATAR_GRADIENTS = [
@@ -19,7 +20,7 @@ export default function Home() {
         마음에 드는 크리에이터를 팔로우하고, 그들이 추천하는 상품을 만나보세요.
       </p>
 
-      <div className="flex snap-x snap-mandatory gap-5 overflow-x-auto pb-3 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <HorizontalSlider>
         {mockCreators.map((creator) => {
           const gradient = AVATAR_GRADIENTS[creator.handle.charCodeAt(0) % AVATAR_GRADIENTS.length];
           const recommendedProducts = mockProducts.filter(
@@ -52,7 +53,7 @@ export default function Home() {
             </section>
           );
         })}
-      </div>
+      </HorizontalSlider>
     </main>
   );
 }

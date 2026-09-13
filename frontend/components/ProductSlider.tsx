@@ -1,4 +1,5 @@
 import ProductCard from "@/components/ProductCard";
+import HorizontalSlider from "@/components/HorizontalSlider";
 import type { MockProduct } from "@/lib/mock-data";
 
 export interface ProductSliderProps {
@@ -7,19 +8,17 @@ export interface ProductSliderProps {
   compact?: boolean;
 }
 
-// 크리에이터 섹션 등에서 상품을 가로로 옆으로 넘겨보는 슬라이드. 스크롤바는 숨기고 스냅으로 넘김감을 준다.
+// 크리에이터 섹션 등에서 상품을 가로로 옆으로 넘겨보는 슬라이드. 화살표 클릭으로도 넘길 수 있다
+// (HorizontalSlider 참고 — 마우스로는 드래그가 안 되는 overflow-x 영역이라 버튼을 붙여둠).
 export default function ProductSlider({ products, compact = false }: ProductSliderProps) {
   if (products.length === 0) {
     return <p className="text-sm text-foreground/40">아직 등록된 추천 상품이 없습니다.</p>;
   }
 
   return (
-    <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+    <HorizontalSlider compact={compact}>
       {products.map((product) => (
-        <div
-          key={product.id}
-          className={`shrink-0 snap-start ${compact ? "w-28" : "w-44 sm:w-48"}`}
-        >
+        <div key={product.id} className={`shrink-0 snap-start ${compact ? "w-28" : "w-44 sm:w-48"}`}>
           <ProductCard
             id={product.id}
             name={product.name}
@@ -29,6 +28,6 @@ export default function ProductSlider({ products, compact = false }: ProductSlid
           />
         </div>
       ))}
-    </div>
+    </HorizontalSlider>
   );
 }
