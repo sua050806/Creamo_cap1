@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
 import { apiFetch } from "@/lib/api";
+import StatCard from "@/components/StatCard";
 import StatusTag from "@/components/StatusTag";
 import type { ApiOrderListItem } from "@/lib/types";
 
@@ -60,6 +61,19 @@ export default function MyPage() {
         <p className="text-sm text-foreground/50">이메일</p>
         <p className="font-medium">{user.email}</p>
       </div>
+    </div>
+  );
+
+  // 구매 활동 요약 — 이미 불러온 주문 내역에서 바로 계산. 계정 정보 카드 하나만 덩그러니 있으면
+  // 화면이 허전해 보인다는 피드백으로 추가.
+  const orderStats = (
+    <div className="grid grid-cols-2 gap-4">
+      <StatCard compact label="총 주문" value={orders === null ? "-" : `${orders.length}건`} />
+      <StatCard
+        compact
+        label="누적 구매금액"
+        value={orders === null ? "-" : `${orders.reduce((sum, o) => sum + o.total_amount, 0).toLocaleString()}원`}
+      />
     </div>
   );
 
@@ -151,6 +165,7 @@ export default function MyPage() {
             </div>
           </div>
 
+          <div className="mt-4">{orderStats}</div>
           <div className="mt-4">{orderHistorySection}</div>
         </div>
       </main>
@@ -160,11 +175,20 @@ export default function MyPage() {
   // buyer(일반 회원)
   return (
     <main className="flex-1 px-6 py-12">
-      <div className="mx-auto max-w-sm">
+      <div className="mx-auto max-w-2xl">
         <h1 className="mb-6 text-2xl font-semibold">마이페이지</h1>
-        <div className="flex flex-col gap-4">
+        <div className="grid gap-4 sm:grid-cols-2">
           {accountCard}
+          {orderStats}
+        </div>
+        <div className="mt-4 flex flex-col gap-4">
           {orderHistorySection}
+          <Link
+            href="/category"
+            className="rounded-2xl border border-black/5 bg-white p-5 text-center text-sm font-medium text-foreground/70 shadow-sm transition-colors hover:text-foreground"
+          >
+            쇼핑 계속하기 →
+          </Link>
         </div>
       </div>
     </main>
