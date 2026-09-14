@@ -114,6 +114,19 @@ export interface AdminOrderItem {
   status: "paid" | "preparing" | "shipping" | "delivered";
 }
 
+export interface CreatorDashboardStats {
+  sales_count: number;
+  commission_total: number;
+  commission_pending: number;
+}
+
+export interface CreatorDashboardProduct {
+  product_id: number;
+  product_name: string;
+  sales_count: number;
+  commission_total: number;
+}
+
 export interface AdminSettlement {
   id: number;
   target_type: "vendor" | "creator";

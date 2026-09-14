@@ -71,6 +71,14 @@ export default function Header() {
 
             {isLoading ? null : user ? (
               <>
+                {user.role === "creator" && (
+                  <Link
+                    href="/creator/dashboard"
+                    className="transition-colors hover:text-foreground"
+                  >
+                    크리에이터 대시보드
+                  </Link>
+                )}
                 <Link
                   href="/mypage"
                   className="transition-colors hover:text-foreground"

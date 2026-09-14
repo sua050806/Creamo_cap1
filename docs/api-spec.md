@@ -235,7 +235,7 @@ Celery로 비동기 처리(결제 검증 → Order/Payment 상태 갱신)하는 
 ## 크리에이터 대시보드
 
 ### GET /creator/dashboard/stats
-**인증**: 역할: creator(승인)
+**인증**: 역할: creator(승인) — 비승인이거나 크리에이터가 아니면 403
 ```json
 // response 200
 { "sales_count": 12, "commission_total": 58000, "commission_pending": 20000 }
@@ -243,12 +243,20 @@ Celery로 비동기 처리(결제 검증 → Order/Payment 상태 갱신)하는 
 클릭수(추천 링크 클릭 이벤트) 집계는 이번 4주 스코프에서 제외하기로 확정 → [decisions.md](decisions.md)
 ADR-014 참고. 판매수·커미션 통계만으로 대시보드 핵심 기능은 충족된다고 판단.
 
+`commission_total`(누적 커미션)은 `OrderItem.status`가 `delivered`(배송완료)로 끝난 것만 확정으로
+집계하고, 아직 `paid`/`preparing`/`shipping` 단계인 것은 `commission_pending`(정산 예정액)으로
+따로 더한다 → [decisions.md](decisions.md) ADR-032 참고. `sales_count`는 본인이 추천해서 발생한
+`OrderItem` 건수(상태 무관, 전체).
+
 ### GET /creator/dashboard/products
-**인증**: 역할: creator(승인)
+**인증**: 역할: creator(승인) — 비승인이거나 크리에이터가 아니면 403
 ```json
 // response 200
 [ { "product_id": 10, "product_name": "무선 이어폰", "sales_count": 8, "commission_total": 39000 } ]
 ```
+`sales_count`는 그 상품이 팔린 수량(`quantity`) 합계, `commission_total`은 상태 무관 커미션 합계
+(위 `/stats`와 달리 delivered로 제한하지 않음 — 상품별로는 "얼마나 벌었는지"를 있는 그대로 보여주는
+용도).
 
 ## 벤더 (제안, 구현 보류)
 

@@ -1,4 +1,5 @@
 from django.contrib.auth import authenticate, login, logout
+from django.db.models import Sum
 from django.middleware.csrf import get_token
 from rest_framework import status
 from rest_framework.generics import ListAPIView, RetrieveAPIView
@@ -6,10 +7,12 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from orders.models import OrderItem
 from recommendations.models import CreatorRecommendation
 from vendors.models import VendorProfile
 
 from .models import CreatorProfile
+from .permissions import IsApprovedCreator
 from .serializers import (
     CreatorDetailSerializer,
     CreatorProfileSerializer,
@@ -124,3 +127,53 @@ class CreatorProductsView(ListAPIView):
             .exclude(product__vendor__status=VendorProfile.Status.SUSPENDED)
             .select_related("product")
         )
+
+
+class CreatorDashboardStatsView(APIView):
+    """로그인한 본인 크리에이터의 판매 통계. api-spec.md 'GET /creator/dashboard/stats' 참고.
+
+    누적 커미션(commission_total)은 배송완료(delivered)로 끝난 주문만 확정으로 집계하고,
+    아직 배송 중/준비 중인 건은 정산 예정액(commission_pending)으로 따로 보여준다."""
+
+    permission_classes = [IsApprovedCreator]
+
+    def get(self, request):
+        items = OrderItem.objects.filter(creator=request.user.creator_profile)
+        sales_count = items.count()
+        commission_total = (
+            items.filter(status=OrderItem.Status.DELIVERED).aggregate(total=Sum("commission_amount"))["total"] or 0
+        )
+        commission_pending = (
+            items.exclude(status=OrderItem.Status.DELIVERED).aggregate(total=Sum("commission_amount"))["total"] or 0
+        )
+        return Response(
+            {
+                "sales_count": sales_count,
+                "commission_total": commission_total,
+                "commission_pending": commission_pending,
+            }
+        )
+
+
+class CreatorDashboardProductsView(APIView):
+    """로그인한 본인 크리에이터가 추천한 상품별 판매 성과. api-spec.md 'GET /creator/dashboard/products' 참고."""
+
+    permission_classes = [IsApprovedCreator]
+
+    def get(self, request):
+        rows = (
+            OrderItem.objects.filter(creator=request.user.creator_profile)
+            .values("product_id", "product__name")
+            .annotate(sales_count=Sum("quantity"), commission_total=Sum("commission_amount"))
+            .order_by("-commission_total")
+        )
+        data = [
+            {
+                "product_id": row["product_id"],
+                "product_name": row["product__name"],
+                "sales_count": row["sales_count"],
+                "commission_total": row["commission_total"],
+            }
+            for row in rows
+        ]
+        return Response(data)
