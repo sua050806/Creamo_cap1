@@ -1,5 +1,6 @@
 import ProductSlider from "@/components/ProductSlider";
 import HorizontalSlider from "@/components/HorizontalSlider";
+import FeaturedProductCard from "@/components/FeaturedProductCard";
 import CategorySection from "@/components/CategorySection";
 import { mockCreators, mockProducts } from "@/lib/mock-data";
 
@@ -62,7 +63,16 @@ export default function Home() {
       <section className="mt-14">
         <h2 className="text-xl font-semibold">신상품</h2>
         <p className="mt-1 mb-4 text-sm text-foreground/60">최근에 새로 올라온 상품이에요.</p>
-        <ProductSlider products={newProducts} />
+        <HorizontalSlider>
+          {newProducts.map((product) => (
+            <FeaturedProductCard
+              key={product.id}
+              id={product.id}
+              name={product.name}
+              price={product.price}
+            />
+          ))}
+        </HorizontalSlider>
       </section>
 
       <section className="mt-14">
