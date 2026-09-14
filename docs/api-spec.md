@@ -222,6 +222,18 @@ ADR-012, [erd.md](erd.md) 참고. 개별 레코드로 저장해두는 이유는,
 { "order_id": 100, "total_amount": 93000 }
 ```
 주문 생성 시점에 재고 확인·차감, `unit_price`/`commission_amount` 스냅샷 저장([erd.md](erd.md) 참고).
+장바구니와는 별개 API — 프론트가 장바구니 내용이든 "바로구매" 단일 상품이든 `items` 배열로 직접
+넘긴다(장바구니에서 주문한 경우, 주문 성공 후 프론트가 `DELETE /cart/items/{id}`로 해당 항목들을
+직접 비움 → ADR-035 참고).
+
+재고 부족·존재하지 않는 옵션 조합·판매중 아닌 상품·미승인 크리에이터 중 하나라도 있으면 그 즉시
+400으로 전체 요청을 거부하고 어떤 것도 반영하지 않는다(부분 주문 없음, DB 트랜잭션으로 원자적 처리).
+`commission_amount`는 `creator_id`가 있으면 해당 크리에이터의 `CreatorRecommendation.commission_rate`
+(없으면 `Product.commission_rate`)로 계산하고, 없으면 0.
+
+**결제 연동 전이라 각 `OrderItem.status`는 생성 시점에 바로 `paid`(결제완료)로 시작한다** — 원래
+`OrderItem.Status`에 "결제 대기" 상태가 없어서(ADR-035에서 발견한 설계 공백), 다음 단계인 PG 연동을
+붙일 때 이 부분을 다시 검토할 예정.
 
 ### GET /orders
 **인증**: 로그인 필요 — 본인 주문만
@@ -229,9 +241,12 @@ ADR-012, [erd.md](erd.md) 참고. 개별 레코드로 저장해두는 이유는,
 // response 200
 [ { "id": 100, "total_amount": 93000, "created_at": "2026-09-04T12:00:00Z", "status_summary": "배송중" } ]
 ```
+`status_summary`는 그 주문에 속한 `OrderItem`들 중 **가장 앞 단계**(결제완료 < 상품준비 < 배송중 <
+배송완료)를 보여준다 — 항목마다 배송 상태가 다를 수 있는데, 그중 가장 안 끝난 단계가 사실상 이 주문
+전체의 병목이기 때문.
 
 ### GET /orders/{id}
-**인증**: 로그인 필요 — 본인 주문만
+**인증**: 로그인 필요 — 본인 주문만(다른 사람 주문 id면 404)
 ```json
 // response 200
 {

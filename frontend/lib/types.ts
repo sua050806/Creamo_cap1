@@ -63,6 +63,41 @@ export interface ApiCart {
   total_amount: number;
 }
 
+export interface ApiOrderCreateItem {
+  product_id: number;
+  creator_id?: number | null;
+  quantity: number;
+  option?: Record<string, string>;
+}
+
+export interface ApiOrderCreateResponse {
+  order_id: number;
+  total_amount: number;
+}
+
+export interface ApiOrderListItem {
+  id: number;
+  total_amount: number;
+  created_at: string;
+  status_summary: string;
+}
+
+export interface ApiOrderDetailItem {
+  id: number;
+  product_name: string;
+  creator_handle: string | null;
+  quantity: number;
+  unit_price: number;
+  status: string;
+}
+
+export interface ApiOrderDetail {
+  id: number;
+  total_amount: number;
+  created_at: string;
+  items: ApiOrderDetailItem[];
+}
+
 export interface PaginatedResponse<T> {
   count: number;
   next: string | null;

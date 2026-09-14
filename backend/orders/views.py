@@ -1,3 +1,4 @@
+from django.db import transaction
 from rest_framework import status as http_status
 from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
@@ -6,9 +7,10 @@ from rest_framework.views import APIView
 
 from accounts.models import CreatorProfile
 from catalog.models import Product
+from recommendations.models import CreatorRecommendation
 
-from .models import Cart, CartItem
-from .serializers import CartSerializer
+from .models import Cart, CartItem, Order, OrderItem
+from .serializers import CartSerializer, OrderDetailSerializer, OrderListSerializer
 
 
 def _get_or_create_cart(user):
@@ -95,3 +97,119 @@ class CartItemView(APIView):
         cart = item.cart
         item.delete()
         return Response(CartSerializer(cart, context={"request": request}).data)
+
+
+def _resolve_order_item(raw_item):
+    """POST /orders의 items 배열 한 줄을 검증하고, 주문 생성에 필요한 값들을 미리 계산해둔다.
+    실패하면 ValidationError를 던진다 — 재고 차감 등 실제 DB 변경 전에 전부 검증부터 끝내기 위함."""
+    product_id = raw_item.get("product_id")
+    creator_id = raw_item.get("creator_id")
+    option = raw_item.get("option") or {}
+
+    try:
+        quantity = int(raw_item.get("quantity", 1))
+    except (TypeError, ValueError):
+        raise ValidationError({"items": "quantity는 숫자여야 합니다."})
+    if quantity < 1:
+        raise ValidationError({"items": "quantity는 1 이상이어야 합니다."})
+
+    try:
+        product = Product.objects.get(id=product_id)
+    except Product.DoesNotExist:
+        raise ValidationError({"items": f"상품(id={product_id})을 찾을 수 없습니다."})
+    if product.status != Product.Status.SELLING:
+        raise ValidationError({"items": f"'{product.name}'은(는) 지금 주문할 수 없는 상태입니다."})
+
+    stock_key = product.stock_key(option)
+    available = product.stock.get(stock_key)
+    if available is None:
+        raise ValidationError({"items": f"'{product.name}'에 존재하지 않는 옵션 조합입니다."})
+    if available < quantity:
+        raise ValidationError({"items": f"'{product.name}' 재고가 부족합니다. (남은 수량: {available})"})
+
+    creator = None
+    commission_rate = product.commission_rate
+    if creator_id:
+        try:
+            creator = CreatorProfile.objects.get(id=creator_id, status=CreatorProfile.Status.APPROVED)
+        except CreatorProfile.DoesNotExist:
+            raise ValidationError({"items": "존재하지 않거나 승인되지 않은 크리에이터입니다."})
+        recommendation = CreatorRecommendation.objects.filter(creator=creator, product=product).first()
+        if recommendation:
+            commission_rate = recommendation.commission_rate
+
+    # 가격·커미션은 지금 시점 값을 스냅샷으로 저장 — 나중에 상품 가격이나 커미션율이 바뀌어도
+    # 이미 발생한 주문 금액은 변하지 않아야 함 → ADR-007 참고.
+    unit_price = product.price
+    commission_amount = int(unit_price * quantity * commission_rate / 100) if creator else 0
+
+    return {
+        "product": product,
+        "creator": creator,
+        "quantity": quantity,
+        "stock_key": stock_key,
+        "unit_price": unit_price,
+        "commission_amount": commission_amount,
+    }
+
+
+class OrderListCreateView(APIView):
+    """본인 주문 목록 조회·생성. api-spec.md '주문' 절 참고. 장바구니와는 별개 API — 프론트가
+    장바구니 내용이든 "바로구매" 단일 상품이든 items 배열로 직접 넘긴다. 주문 생성이 곧바로 결제완료를
+    뜻하지는 않지만(결제 연동은 다음 단계), OrderItem.Status에 결제 전 상태가 따로 없어서 우선
+    기본값(paid)으로 시작한다."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        orders = Order.objects.filter(buyer=request.user).prefetch_related("items").order_by("-created_at")
+        return Response(OrderListSerializer(orders, many=True).data)
+
+    def post(self, request):
+        raw_items = request.data.get("items")
+        if not raw_items:
+            raise ValidationError({"items": "최소 1개 이상의 상품이 필요합니다."})
+
+        resolved_items = [_resolve_order_item(raw_item) for raw_item in raw_items]
+
+        with transaction.atomic():
+            # select_for_update로 동시에 들어온 다른 주문과 재고를 두고 경합하지 않게 함.
+            for resolved in resolved_items:
+                product = Product.objects.select_for_update().get(id=resolved["product"].id)
+                available = product.stock.get(resolved["stock_key"], 0)
+                if available < resolved["quantity"]:
+                    raise ValidationError(
+                        {"items": f"'{product.name}' 재고가 부족합니다. (남은 수량: {available})"}
+                    )
+                product.stock[resolved["stock_key"]] = available - resolved["quantity"]
+                product.save(update_fields=["stock"])
+
+            total_amount = sum(r["unit_price"] * r["quantity"] for r in resolved_items)
+            order = Order.objects.create(buyer=request.user, total_amount=total_amount)
+            OrderItem.objects.bulk_create(
+                [
+                    OrderItem(
+                        order=order,
+                        product=r["product"],
+                        creator=r["creator"],
+                        quantity=r["quantity"],
+                        unit_price=r["unit_price"],
+                        commission_amount=r["commission_amount"],
+                    )
+                    for r in resolved_items
+                ]
+            )
+
+        return Response({"order_id": order.id, "total_amount": order.total_amount}, status=http_status.HTTP_201_CREATED)
+
+
+class OrderDetailView(APIView):
+    """본인 주문 상세 조회. api-spec.md 'GET /orders/{id}' 참고."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        order = Order.objects.filter(id=pk, buyer=request.user).prefetch_related("items").first()
+        if order is None:
+            return Response({"error": "주문을 찾을 수 없습니다."}, status=http_status.HTTP_404_NOT_FOUND)
+        return Response(OrderDetailSerializer(order).data)

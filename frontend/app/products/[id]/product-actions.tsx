@@ -2,20 +2,23 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { apiFetch, ApiError } from "@/lib/api";
+import type { ApiOrderCreateResponse } from "@/lib/types";
 
 const buttonClass =
   "flex-1 rounded-full px-4 py-2.5 text-sm font-medium transition-opacity hover:opacity-90";
 
-// 옵션 선택·수량 조절·장바구니 담기 버튼. POST /cart 연동(ADR-020: 상품+옵션+크리에이터 조합이 같으면
-// 수량만 늘어남). 바로구매는 주문/결제 API가 아직 없어서(4주차 스코프) 그대로 안내 문구만 보여준다.
+// 옵션 선택·수량 조절·장바구니 담기/바로구매 버튼. POST /cart(ADR-020: 상품+옵션+크리에이터 조합이
+// 같으면 수량만 늘어남), 바로구매는 POST /orders로 장바구니를 거치지 않고 바로 주문을 만든다.
 export default function ProductActions({
   product,
 }: {
   product: { id: number; options: Record<string, string[]> };
 }) {
   const { user, isLoading } = useAuth();
+  const router = useRouter();
   const optionEntries = Object.entries(product.options);
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>(
     Object.fromEntries(optionEntries.map(([key, values]) => [key, values[0]]))
@@ -23,6 +26,7 @@ export default function ProductActions({
   const [quantity, setQuantity] = useState(1);
   const [message, setMessage] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+  const [buyingNow, setBuyingNow] = useState(false);
 
   const handleAddToCart = async () => {
     if (!user) {
@@ -45,6 +49,28 @@ export default function ProductActions({
       setMessage(err instanceof ApiError ? err.message : "장바구니 담기에 실패했습니다.");
     } finally {
       setAdding(false);
+    }
+  };
+
+  const handleBuyNow = async () => {
+    if (!user) {
+      setMessage("로그인 후 구매할 수 있습니다.");
+      return;
+    }
+    setBuyingNow(true);
+    setMessage(null);
+    try {
+      const { order_id } = await apiFetch<ApiOrderCreateResponse>("/orders", {
+        method: "POST",
+        body: JSON.stringify({
+          items: [{ product_id: product.id, quantity, option: selectedOptions }],
+        }),
+      });
+      router.push(`/orders/${order_id}?confirmed=1`);
+    } catch (err) {
+      setMessage(err instanceof ApiError ? err.message : "주문에 실패했습니다.");
+    } finally {
+      setBuyingNow(false);
     }
   };
 
@@ -101,10 +127,11 @@ export default function ProductActions({
           {adding ? "담는 중..." : "장바구니 담기"}
         </button>
         <button
-          onClick={() => setMessage("바로구매는 아직 백엔드와 연동되지 않았습니다. (4주차 예정)")}
-          className={`${buttonClass} bg-brand text-brand-foreground`}
+          onClick={handleBuyNow}
+          disabled={isLoading || buyingNow}
+          className={`${buttonClass} bg-brand text-brand-foreground disabled:opacity-50`}
         >
-          바로구매
+          {buyingNow ? "주문 처리 중..." : "바로구매"}
         </button>
       </div>
 

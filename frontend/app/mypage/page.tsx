@@ -1,8 +1,11 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
+import { apiFetch } from "@/lib/api";
 import StatusTag from "@/components/StatusTag";
+import type { ApiOrderListItem } from "@/lib/types";
 
 const CREATOR_STATUS_LABEL: Record<string, string> = {
   pending: "승인대기",
@@ -15,9 +18,16 @@ const buttonClass =
 
 // 마이페이지. 스펙 7번 페이지 목록엔 없었지만 2.1의 "주문 내역 조회" 등 로그인 사용자 정보 화면이
 // 필요해 추가. 역할(buyer/creator/admin)에 따라 정말 필요한 내용이 다르다고 판단해서, 공통
-// 계정정보 카드 아래에 역할별로 완전히 다른 패널을 보여준다.
+// 계정정보 카드 아래에 역할별로 완전히 다른 패널을 보여준다. 주문 내역(GET /orders)은
+// admin을 제외한 buyer/creator 공통으로 보여준다 — 크리에이터도 구매자로서 물건을 살 수 있으므로.
 export default function MyPage() {
   const { user, isLoading } = useAuth();
+  const [orders, setOrders] = useState<ApiOrderListItem[] | null>(null);
+
+  useEffect(() => {
+    if (!user || user.role === "admin") return;
+    apiFetch<ApiOrderListItem[]>("/orders").then(setOrders).catch(() => setOrders([]));
+  }, [user]);
 
   if (isLoading) {
     return (
@@ -50,6 +60,36 @@ export default function MyPage() {
         <p className="text-sm text-foreground/50">이메일</p>
         <p className="font-medium">{user.email}</p>
       </div>
+    </div>
+  );
+
+  const orderHistorySection = (
+    <div className="rounded-2xl border border-black/5 bg-white shadow-sm">
+      <p className="px-6 pt-6 text-sm font-medium text-foreground/50">주문 내역</p>
+      {orders === null ? (
+        <p className="px-6 py-6 text-sm text-foreground/40">불러오는 중...</p>
+      ) : orders.length === 0 ? (
+        <p className="px-6 py-6 text-sm text-foreground/40">아직 주문한 상품이 없습니다.</p>
+      ) : (
+        <div className="divide-y divide-black/5">
+          {orders.map((order) => (
+            <Link
+              key={order.id}
+              href={`/orders/${order.id}`}
+              className="flex items-center justify-between px-6 py-4 text-sm transition-colors hover:bg-black/[0.02]"
+            >
+              <div>
+                <p className="font-medium">#{order.id}</p>
+                <p className="mt-0.5 text-xs text-foreground/50">{order.created_at.slice(0, 10)}</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="font-medium">{order.total_amount.toLocaleString()}원</span>
+                <StatusTag status={order.status_summary} />
+              </div>
+            </Link>
+          ))}
+        </div>
+      )}
     </div>
   );
 
@@ -110,6 +150,8 @@ export default function MyPage() {
               )}
             </div>
           </div>
+
+          <div className="mt-4">{orderHistorySection}</div>
         </div>
       </main>
     );
@@ -122,11 +164,7 @@ export default function MyPage() {
         <h1 className="mb-6 text-2xl font-semibold">마이페이지</h1>
         <div className="flex flex-col gap-4">
           {accountCard}
-          <div className="rounded-2xl border border-black/5 bg-white p-6 shadow-sm">
-            <p className="text-sm text-foreground/40">
-              주문 내역은 장바구니·주문 API 구현 후 이 페이지에 추가될 예정입니다.
-            </p>
-          </div>
+          {orderHistorySection}
         </div>
       </div>
     </main>

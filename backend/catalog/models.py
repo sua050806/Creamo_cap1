@@ -41,3 +41,11 @@ class Product(models.Model):
 
     def __str__(self):
         return self.name
+
+    def stock_key(self, option):
+        """주문·장바구니에서 선택한 옵션(dict)을 stock JSON의 키 문자열로 바꾼다.
+        옵션이 없는 상품은 "기본", 있으면 options에 등록된 키 순서대로 값을 "-"로 이어붙인다
+        (예: {"색상": "블랙", "사이즈": "S"} → "블랙-S") → ADR-016 참고."""
+        if not self.options:
+            return "기본"
+        return "-".join(str(option.get(name, "")) for name in self.options.keys())

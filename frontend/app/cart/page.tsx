@@ -2,21 +2,25 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import ProductCard from "@/components/ProductCard";
 import { useAuth } from "@/lib/auth-context";
-import { apiFetch, apiFetchPublic } from "@/lib/api";
-import type { ApiCart, ApiProduct, PaginatedResponse } from "@/lib/types";
+import { apiFetch, apiFetchPublic, ApiError } from "@/lib/api";
+import type { ApiCart, ApiOrderCreateResponse, ApiProduct, PaginatedResponse } from "@/lib/types";
 
 const buttonClass =
   "inline-block rounded-full bg-brand px-4 py-2.5 text-center text-sm font-medium text-brand-foreground transition-opacity hover:opacity-90";
 
 // 장바구니 페이지. 서버 DB(Cart/CartItem)에 저장된 항목을 조회·수정한다 (docs/decisions.md ADR-013
-// 참고). GET /cart, PATCH/DELETE /cart/items/{id} 연동.
+// 참고). GET /cart, PATCH/DELETE /cart/items/{id}, 주문하기는 POST /orders 연동.
 export default function CartPage() {
   const { user, isLoading } = useAuth();
+  const router = useRouter();
   const [cart, setCart] = useState<ApiCart | null>(null);
   const [busyItemId, setBusyItemId] = useState<number | null>(null);
   const [suggestions, setSuggestions] = useState<ApiProduct[]>([]);
+  const [checkingOut, setCheckingOut] = useState(false);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -52,6 +56,34 @@ export default function CartPage() {
       setCart(updated);
     } finally {
       setBusyItemId(null);
+    }
+  };
+
+  const handleCheckout = async () => {
+    if (!cart || cart.items.length === 0) return;
+    setCheckingOut(true);
+    setCheckoutError(null);
+    try {
+      const { order_id } = await apiFetch<ApiOrderCreateResponse>("/orders", {
+        method: "POST",
+        body: JSON.stringify({
+          items: cart.items.map((item) => ({
+            product_id: item.product.id,
+            creator_id: item.creator?.id ?? null,
+            quantity: item.quantity,
+            option: item.option,
+          })),
+        }),
+      });
+      // 주문 생성이 끝난 항목은 장바구니에서 비운다(주문 자체는 장바구니와 독립적인 API라 서버가
+      // 자동으로 지워주지 않음).
+      await Promise.all(cart.items.map((item) => apiFetch(`/cart/items/${item.id}`, { method: "DELETE" })));
+      router.push(`/orders/${order_id}?confirmed=1`);
+    } catch (err) {
+      setCheckoutError(err instanceof ApiError ? err.message : "주문에 실패했습니다.");
+      apiFetch<ApiCart>("/cart").then(setCart).catch(() => {});
+    } finally {
+      setCheckingOut(false);
     }
   };
 
@@ -178,9 +210,19 @@ export default function CartPage() {
             ))}
           </div>
 
-          <div className="mt-6 flex items-center justify-between rounded-2xl border border-black/5 bg-white p-5 shadow-sm">
-            <p className="text-sm text-foreground/60">총 결제 금액</p>
-            <p className="text-xl font-semibold">{cart.total_amount.toLocaleString()}원</p>
+          <div className="mt-6 rounded-2xl border border-black/5 bg-white p-5 shadow-sm">
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-foreground/60">총 결제 금액</p>
+              <p className="text-xl font-semibold">{cart.total_amount.toLocaleString()}원</p>
+            </div>
+            {checkoutError && <p className="mt-2 text-xs text-red-500">{checkoutError}</p>}
+            <button
+              onClick={handleCheckout}
+              disabled={checkingOut}
+              className="mt-4 w-full rounded-full bg-brand px-4 py-2.5 text-sm font-medium text-brand-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
+            >
+              {checkingOut ? "주문 처리 중..." : "주문하기"}
+            </button>
           </div>
         </div>
       )}
