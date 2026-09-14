@@ -161,18 +161,46 @@ ADR-012, [erd.md](erd.md) 참고. 개별 레코드로 저장해두는 이유는,
 **인증**: 로그인 필요
 ```json
 // response 200
-{ "items": [ { "id": 1, "product_id": 10, "creator_id": 3, "quantity": 2, "option": {"색상": "블랙"} } ] }
+{
+  "id": 1,
+  "items": [
+    { "id": 1, "product": { "id": 10, "name": "무선 이어폰", "price": 39000, "thumbnail": "..." },
+      "creator": { "id": 3, "handle": "gil-dong" }, "quantity": 2, "option": {"색상": "블랙"},
+      "subtotal": 78000 }
+  ],
+  "total_amount": 78000
+}
 ```
+구현하면서 `product_id`/`creator_id`를 그대로 내려주는 대신, 프론트가 바로 렌더링할 수 있게
+`product`/`creator`를 중첩 객체로 넣고 `subtotal`/`total_amount`를 서버에서 계산해서 같이 내려줌
+(다른 엔드포인트들처럼 구현하면서 화면에 맞게 필드를 보강한 사례). `creator`는 추천 링크를 거치지
+않고 담았으면 `null`.
 
 ### POST /cart
 **인증**: 로그인 필요
 ```json
 // request
-{ "product_id": 10, "creator_id": 3, "quantity": 2, "option": {"색상": "블랙"} }
-// response 200 (담은 뒤 전체 장바구니 반환)
+{ "product_id": 10, "creator_id": 3, "quantity": 2, "option": {"색상": "블랙"} }  // creator_id는 선택
+// response 200 (담은 뒤 전체 장바구니 반환, GET /cart와 같은 형식)
 ```
-같은 상품(+같은 옵션·크리에이터 조합)을 다시 담으면 수량만 늘릴지, 별도 줄로 추가할지는 **결정 필요**
-(우선 수량을 늘리는 쪽으로 가정).
+같은 상품(+같은 옵션·크리에이터 조합)을 다시 담으면 수량만 늘리는 쪽으로 확정 → [decisions.md]
+(decisions.md) ADR-020 참고. 조합 비교는 DB(JSONB) 레벨에서 `option` 값 전체를 비교한다.
+
+### PATCH /cart/items/{id}
+**인증**: 로그인 필요 — 본인 장바구니 항목만(다른 사람 것이면 404)
+```json
+// request
+{ "quantity": 3 }
+// response 200 (전체 장바구니 반환)
+```
+문서에는 없었지만(원래 GET/POST만 명시) 실제 장바구니 화면에서 수량 조절이 꼭 필요해서 구현 중 추가.
+
+### DELETE /cart/items/{id}
+**인증**: 로그인 필요 — 본인 장바구니 항목만(다른 사람 것이면 404)
+```json
+// response 200 (전체 장바구니 반환)
+```
+문서에는 없었지만 항목 삭제가 꼭 필요해서 구현 중 추가.
 
 ## 주문
 

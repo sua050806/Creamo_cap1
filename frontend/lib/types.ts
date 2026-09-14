@@ -47,6 +47,21 @@ export interface ApiCreatorProduct {
   commission_rate: string;
 }
 
+export interface ApiCartItem {
+  id: number;
+  product: { id: number; name: string; price: number; thumbnail: string | null };
+  creator: { id: number; handle: string } | null;
+  quantity: number;
+  option: Record<string, string>;
+  subtotal: number;
+}
+
+export interface ApiCart {
+  id: number;
+  items: ApiCartItem[];
+  total_amount: number;
+}
+
 export interface PaginatedResponse<T> {
   count: number;
   next: string | null;
