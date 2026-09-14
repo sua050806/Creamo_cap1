@@ -25,12 +25,12 @@ export default function LoginPage() {
     setSubmitting(true);
     setError(null);
     try {
-      await apiFetch("/auth/login", {
+      const user = await apiFetch<{ role: "buyer" | "creator" | "admin" }>("/auth/login", {
         method: "POST",
         body: JSON.stringify({ email, password }),
       });
       await refresh();
-      router.push("/");
+      router.push(user.role === "admin" ? "/admin" : "/");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "로그인에 실패했습니다.");
     } finally {
