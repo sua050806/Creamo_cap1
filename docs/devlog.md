@@ -134,3 +134,37 @@
   결정하는 의미 있는 게이트가 됨. 근거·필요 작업은 `docs/decisions.md` ADR-023, `docs/erd.md`
   VendorProfile, `docs/api-spec.md` "벤더 (제안, 구현 보류)" 섹션에 정리해둠. 지금 당장 구현하진 않고
   3주차 이후 우선순위 논의 때 다시 꺼내기로 함.
+
+## 2026-09-14 — 가로 슬라이드 버튼, Docker 설치 후 마이그레이션 트러블슈팅 (1주차 완전 마무리)
+
+- 메인 페이지 크리에이터 슬라이드가 "키보드로만 넘어간다"는 피드백 → 원인은 스크롤바를 CSS로 숨겨놔서
+  일반 마우스로는 드래그할 방법이 없었던 것(트랙패드 스와이프·Shift+휠만 가능). `HorizontalSlider`
+  컴포넌트를 만들어 클릭 화살표 버튼을 붙임. 버튼은 hover로만 나타나지 않고 항상 보이게 함 — 터치
+  기기는 hover 자체가 없어서 hover로만 노출하면 그 환경에서 버튼을 아예 못 봄.
+- 같은 맥락에서 크리에이터가 3명뿐이라 1440px 이상 화면에서는 슬라이드할 내용 자체가 없었던(overflow
+  0) 것도 같이 발견 → 크리에이터를 6명으로 늘림.
+- **Docker 설치 후 마이그레이션 대장정**: 사용자가 Docker Desktop 설치 + `docker compose up`까지 직접
+  진행. `python manage.py migrate`를 로컬 venv에서 실행하니 `UnicodeDecodeError` 발생.
+  - 원인 추적: Windows 시스템 로케일이 한국어(cp949)인데, `psycopg2`가 PostgreSQL 서버의 에러/알림
+    메시지를 처리하다가 이 인코딩과 충돌해서 크래시하는 것으로 확인(TCP 연결 자체는 정상, `psql`로
+    컨테이너 안에서 직접 접속하면 문제없음).
+  - 1차 시도: `psycopg2` → `psycopg`(3번대)로 교체. 크래시는 안 나지만 이번엔 진짜 서버 에러 메시지가
+    깨진 채로 나옴(`fe_sendauth` 관련 텍스트가 유니코드 치환 문자로 도배됨).
+  - 2차 시도: `POSTGRES_HOST_AUTH_METHOD: trust`로 비밀번호 인증 자체를 꺼봄(볼륨 재생성 포함) — 그래도
+    동일한 에러. `pg_hba.conf`를 직접 열어 trust가 제대로 적용된 것도 확인했는데도 안 됨.
+  - 결정적 단서: **PostgreSQL 컨테이너 로그에 해당 연결 시도 자체가 한 줄도 안 찍힘** — 즉 요청이
+    Postgres에 도달하기도 전에 Windows ↔ Docker(WSL2) 사이 어딘가에서 데이터가 깨지고 있다는 뜻.
+    `wsl --shutdown` 후 Docker Desktop 재시작까지 해봤지만 동일 증상 반복 — 일시적 네트워크 오류가
+    아니라 이 환경에서 지속되는 문제로 결론.
+  - **최종 해결**: Windows 호스트에서 컨테이너로 직접 붙는 것 자체를 포기하고, **Django 백엔드도
+    Docker 컨테이너 안에서 실행**하도록 전환(`backend/Dockerfile`, `docker-compose.yml`의 `backend`
+    서비스 추가). 컨테이너-컨테이너 통신은 Windows 호스트 네트워킹을 거치지 않으므로 문제 자체가
+    사라짐 — 실제로 `docker compose exec backend python manage.py migrate`가 바로 성공, PostgreSQL에
+    21개 테이블 생성 확인, `createsuperuser`로 Django 관리자 사이트 로그인까지 확인함.
+  - **트러블슈팅 메모(포트폴리오용)**: 이 경험은 "로컬에서 안 되는 게 라이브러리 버그인 줄 알았는데
+    사실 OS/네트워크 계층 문제였고, 해결책은 문제를 고치는 게 아니라 그 계층을 아예 안 거치도록
+    구조를 바꾸는 것"이었던 사례라 발표·면접에서 쓸 만한 소재. 스펙 3번에 원래 "배포: Docker"라고
+    되어 있었는데, 결과적으로 로컬 개발 환경도 배포 환경과 동일하게 컨테이너 기반으로 통일된 셈.
+  - 이제부터 백엔드 실행은 `python manage.py ...`가 아니라 `docker compose exec backend python
+    manage.py ...`로 함. README에 반영.
+- 이걸로 1주차(기획·설계) 남은 과제였던 "Docker 설치 + 실제 DB 반영"까지 완전히 끝남.

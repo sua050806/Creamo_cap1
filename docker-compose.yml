@@ -5,6 +5,9 @@ services:
       POSTGRES_DB: creamo
       POSTGRES_USER: creamo
       POSTGRES_PASSWORD: creamo
+      # 로컬 개발 전용: Windows + 한국어 로케일에서 SCRAM 비밀번호 인증 중 psycopg가 서버 에러
+      # 메시지를 깨뜨리는 문제(UnicodeDecodeError)를 피하기 위해 로컬 연결은 비밀번호 없이 허용.
+      POSTGRES_HOST_AUTH_METHOD: trust
     ports:
       - "5432:5432"
     volumes:
@@ -14,6 +17,25 @@ services:
     image: redis:7
     ports:
       - "6379:6379"
+
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      POSTGRES_DB: creamo
+      POSTGRES_USER: creamo
+      POSTGRES_PASSWORD: creamo
+      # 컨테이너 네트워크 안에서는 서비스 이름이 곧 호스트명이 된다 (localhost 아님)
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    volumes:
+      - ./backend:/app
+    depends_on:
+      - postgres
+      - redis
 
 volumes:
   postgres_data:

@@ -188,3 +188,24 @@ CreatorProfile은 회원가입과 별도 단계로 작성하는 것으로 확정
   다른 표현으로 바꿀지는 미정)
 
 지금은 4주 일정상 우선순위가 낮다고 보고 설계만 남겨두고, 실제 구현 여부·시점은 3주차 이후 다시 논의.
+
+## ADR-024. 백엔드(Django)도 Docker 컨테이너로 실행 (로컬 venv 직접 실행 폐기)
+**상태**: 확정 (2026-09-14)
+
+Windows(한국어 로케일) 환경에서 로컬 Python venv의 `psycopg`가 Docker로 띄운 PostgreSQL에 직접
+접속할 때 연결이 계속 깨지는 문제가 발생. `psycopg2`→`psycopg`(v3) 교체, 비밀번호 인증 비활성화
+(`POSTGRES_HOST_AUTH_METHOD: trust`), WSL2 재시작까지 시도했지만 동일하게 실패. 결정적으로
+PostgreSQL 컨테이너 로그에 연결 시도 자체가 기록되지 않는 것으로 보아, 요청이 서버에 도달하기도
+전에 Windows 호스트와 Docker(WSL2) 사이 네트워크 계층에서 데이터가 깨지는 것으로 판단(자세한 진단
+과정은 `docs/devlog.md` 2026-09-14 참고).
+
+대안으로 순수 Windows 네이티브 PostgreSQL 설치도 검토했지만, 스펙 3번에 이미 "배포: Docker + AWS"가
+명시되어 있어 로컬 개발 환경도 컨테이너 기반으로 맞추는 쪽을 택함 — Django를 Docker 컨테이너 안에서
+실행하면 PostgreSQL·Redis와 같은 컨테이너 네트워크로 통신하므로, 문제가 있던 Windows 호스트 경유
+구간 자체를 거치지 않게 됨.
+
+`backend/Dockerfile`, `.dockerignore`를 추가하고 `docker-compose.yml`에 `backend` 서비스를 추가.
+코드 디렉터리를 볼륨 마운트해서 로컬에서 코드를 수정하면 컨테이너 안에도 바로 반영되고
+`runserver`가 자동 재시작하게 함(패키지 추가 시에만 이미지 재빌드 필요). 이제부터 백엔드 명령어는
+`docker compose exec backend python manage.py ...` 형태로 실행한다 — 기존 `backend/venv`로 직접
+실행하던 방식은 더 이상 쓰지 않음.
