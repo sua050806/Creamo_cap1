@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { apiFetch, ApiError } from "@/lib/api";
+import { useAuth } from "@/lib/auth-context";
 
 const inputClass =
   "rounded-lg border border-black/10 bg-white px-3 py-2 outline-none transition-shadow focus:border-brand focus:ring-2 focus:ring-brand/20";
@@ -19,6 +20,7 @@ interface SignupResponse {
 // 회원가입 페이지 (buyer/creator 선택). 스펙 7번 페이지 목록엔 없었지만 2.1/2.2 가입 흐름에 필요해 추가.
 // POST /auth/signup 연동. 크리에이터로 가입하면 별도 단계(/creator/apply)에서 프로필을 작성한다.
 export default function SignupPage() {
+  const { refresh } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
@@ -37,6 +39,7 @@ export default function SignupPage() {
         body: JSON.stringify({ email, password, name, role }),
       });
       setResult(user);
+      await refresh();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "회원가입에 실패했습니다.");
     } finally {

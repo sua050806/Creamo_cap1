@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch, ApiError } from "@/lib/api";
+import { useAuth } from "@/lib/auth-context";
 
 const inputClass =
   "rounded-lg border border-black/10 bg-white px-3 py-2 outline-none transition-shadow focus:border-brand focus:ring-2 focus:ring-brand/20";
@@ -13,6 +14,7 @@ const buttonClass =
 // POST /auth/login(세션 쿠키, ADR-011) 연동.
 export default function LoginPage() {
   const router = useRouter();
+  const { refresh } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -27,6 +29,7 @@ export default function LoginPage() {
         method: "POST",
         body: JSON.stringify({ email, password }),
       });
+      await refresh();
       router.push("/");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "로그인에 실패했습니다.");

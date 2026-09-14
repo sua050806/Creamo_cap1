@@ -1,8 +1,21 @@
+"use client";
+
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/lib/auth-context";
 
 // 전역 헤더: 내비게이션·검색·장바구니. 검색은 폼 GET 제출로 /category?q=검색어로 이동해서
 // 상품명을 필터링한다(자바스크립트 없이 동작, category/page.tsx에서 처리).
+// 로그인 상태는 AuthProvider(GET /auth/me)를 통해 반영된다.
 export default function Header() {
+  const { user, isLoading, logout } = useAuth();
+  const router = useRouter();
+
+  const handleLogout = async () => {
+    await logout();
+    router.push("/");
+  };
+
   return (
     <header className="sticky top-0 z-10 flex items-center justify-between gap-4 border-b border-black/5 bg-background/80 px-6 py-4 backdrop-blur">
       <Link href="/" className="shrink-0 text-lg font-bold tracking-tight text-brand">
@@ -26,15 +39,29 @@ export default function Header() {
           <Link href="/cart" className="transition-colors hover:text-foreground">
             장바구니
           </Link>
-          <Link href="/login" className="transition-colors hover:text-foreground">
-            로그인
-          </Link>
-          <Link
-            href="/signup"
-            className="rounded-full bg-brand px-4 py-1.5 font-medium text-brand-foreground transition-opacity hover:opacity-90"
-          >
-            회원가입
-          </Link>
+
+          {isLoading ? null : user ? (
+            <>
+              <Link href="/mypage" className="transition-colors hover:text-foreground">
+                {user.name}님
+              </Link>
+              <button onClick={handleLogout} className="transition-colors hover:text-foreground">
+                로그아웃
+              </button>
+            </>
+          ) : (
+            <>
+              <Link href="/login" className="transition-colors hover:text-foreground">
+                로그인
+              </Link>
+              <Link
+                href="/signup"
+                className="rounded-full bg-brand px-4 py-1.5 font-medium text-brand-foreground transition-opacity hover:opacity-90"
+              >
+                회원가입
+              </Link>
+            </>
+          )}
         </nav>
       </div>
     </header>

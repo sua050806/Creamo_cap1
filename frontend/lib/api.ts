@@ -43,12 +43,23 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}): Prom
     headers,
   });
 
+  // 본문이 비어있거나(로그아웃처럼) JSON이 아닐 수 있어(CSRF 실패 시 Django가 HTML 페이지를 그대로
+  // 돌려줌) 먼저 텍스트로 받고 안전하게 파싱한다.
+  const text = await res.text();
+  let body: unknown = null;
+  if (text) {
+    try {
+      body = JSON.parse(text);
+    } catch {
+      body = null;
+    }
+  }
+
   if (!res.ok) {
-    const body = await res.json().catch(() => null);
-    const message = body?.error ?? body?.detail ?? `${res.status} ${res.statusText}`;
+    const parsed = body as { error?: string; detail?: string } | null;
+    const message = parsed?.error ?? parsed?.detail ?? text.slice(0, 200) ?? `${res.status} ${res.statusText}`;
     throw new ApiError(message, res.status);
   }
 
-  if (res.status === 204) return undefined as T;
-  return res.json() as Promise<T>;
+  return body as T;
 }
