@@ -65,35 +65,31 @@ export default function CreatorDashboardPage() {
     );
   }
 
-  if (!user.creator_profile) {
+  if (!isApprovedCreator) {
+    // 크리에이터 프로필을 아예 안 만들었거나(status 없음), 만들었지만 아직 승인 전(대기/반려)인
+    // 경우를 한 화면으로 합침 — 어느 쪽이든 "지금은 대시보드를 못 쓴다"는 메시지는 똑같이 우선
+    // 보여주고, 프로필이 아예 없는 사람에게만 "여기서 신청하라"는 보조 링크를 작게 덧붙인다.
     return (
       <main className="flex-1 px-6 py-12">
         <div className="mx-auto max-w-sm rounded-2xl border border-black/5 bg-white p-6 text-center shadow-sm">
-          <p className="mb-4 text-sm text-foreground/60">
-            아직 크리에이터 프로필을 작성하지 않았습니다.
+          {user.creator_profile && (
+            <div className="mb-3 flex justify-center">
+              <StatusTag
+                status={CREATOR_STATUS_LABEL[user.creator_profile.status] ?? user.creator_profile.status}
+              />
+            </div>
+          )}
+          <p className="text-base font-medium text-foreground">
+            관리자 승인 후 대시보드와 추천 상품 등록을 이용할 수 있습니다.
           </p>
-          <Link
-            href="/creator/apply"
-            className="inline-block rounded-full bg-brand px-4 py-2.5 text-sm font-medium text-brand-foreground transition-opacity hover:opacity-90"
-          >
-            크리에이터 프로필 작성하기
-          </Link>
-        </div>
-      </main>
-    );
-  }
-
-  if (user.creator_profile.status !== "approved") {
-    return (
-      <main className="flex-1 px-6 py-12">
-        <div className="mx-auto max-w-sm">
-          <h1 className="mb-4 text-2xl font-semibold">크리에이터 대시보드</h1>
-          <div className="flex flex-col gap-2 rounded-2xl border border-black/5 bg-white p-6 shadow-sm">
-            <StatusTag status={CREATOR_STATUS_LABEL[user.creator_profile.status] ?? user.creator_profile.status} />
-            <p className="text-sm text-foreground/60">
-              관리자 승인 후 대시보드와 추천 상품 등록을 이용할 수 있습니다.
+          {!user.creator_profile && (
+            <p className="mt-3 text-xs text-foreground/50">
+              아직 크리에이터 프로필 작성을 안 했나요?{" "}
+              <Link href="/creator/apply" className="text-brand underline">
+                하러가기
+              </Link>
             </p>
-          </div>
+          )}
         </div>
       </main>
     );
