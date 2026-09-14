@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
 import { apiFetch } from "@/lib/api";
-import type { AdminProduct, AdminVendor, ApiCategory } from "@/lib/types";
+import type { AdminProduct, AdminVendor, ApiCategory, ApiCreator } from "@/lib/types";
 
 const STATUS_LABEL: Record<string, string> = {
   selling: "판매중",
@@ -20,25 +20,31 @@ const EMPTY_FORM = {
   description: "",
   options: "{}",
   stock: '{"기본": 0}',
+  creator_id: "",
 };
 
 // 벤더로부터 오프라인으로 받은 상품 정보를 관리자가 대리 등록. GET/POST /admin/products,
-// PATCH /admin/products/{id}(이미지 업로드/교체 전용) 연동.
+// PATCH /admin/products/{id}(이미지 업로드/교체 전용), POST/DELETE
+// /admin/products/{id}/recommendations(추천 크리에이터 연결/해제) 연동.
 export default function ProductsTab() {
   const [products, setProducts] = useState<AdminProduct[] | null>(null);
   const [vendors, setVendors] = useState<AdminVendor[]>([]);
   const [categories, setCategories] = useState<ApiCategory[]>([]);
+  const [creators, setCreators] = useState<ApiCreator[]>([]);
   const [form, setForm] = useState(EMPTY_FORM);
   const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
   const [fileInputKey, setFileInputKey] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [uploadingId, setUploadingId] = useState<number | null>(null);
+  const [addingRecommendId, setAddingRecommendId] = useState<number | null>(null);
+  const [newRecommendCreatorId, setNewRecommendCreatorId] = useState<Record<number, string>>({});
 
   useEffect(() => {
     apiFetch<AdminProduct[]>("/admin/products").then(setProducts).catch(() => setProducts([]));
     apiFetch<AdminVendor[]>("/admin/vendors").then(setVendors).catch(() => setVendors([]));
     apiFetch<ApiCategory[]>("/categories").then(setCategories).catch(() => setCategories([]));
+    apiFetch<ApiCreator[]>("/creators").then(setCreators).catch(() => setCreators([]));
   }, []);
 
   const handleSubmit = async (e: FormEvent) => {
@@ -66,6 +72,7 @@ export default function ProductsTab() {
     formData.append("options", JSON.stringify(options));
     formData.append("stock", JSON.stringify(stock));
     if (thumbnailFile) formData.append("thumbnail", thumbnailFile);
+    if (form.creator_id) formData.append("creator_id", form.creator_id);
 
     setSubmitting(true);
     try {
@@ -106,6 +113,34 @@ export default function ProductsTab() {
     }
   };
 
+  const handleAddRecommendation = async (product: AdminProduct) => {
+    const creatorId = newRecommendCreatorId[product.id];
+    if (!creatorId) return;
+
+    setAddingRecommendId(product.id);
+    setError(null);
+    try {
+      const updated = await apiFetch<AdminProduct>(`/admin/products/${product.id}/recommendations`, {
+        method: "POST",
+        body: JSON.stringify({ creator_id: Number(creatorId) }),
+      });
+      setProducts((prev) => (prev ? prev.map((p) => (p.id === product.id ? updated : p)) : prev));
+      setNewRecommendCreatorId((prev) => ({ ...prev, [product.id]: "" }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "추천 크리에이터 연결에 실패했습니다.");
+    } finally {
+      setAddingRecommendId(null);
+    }
+  };
+
+  const handleRemoveRecommendation = async (product: AdminProduct, creatorId: number) => {
+    const updated = await apiFetch<AdminProduct>(
+      `/admin/products/${product.id}/recommendations/${creatorId}`,
+      { method: "DELETE" }
+    );
+    setProducts((prev) => (prev ? prev.map((p) => (p.id === product.id ? updated : p)) : prev));
+  };
+
   return (
     <div className="space-y-8">
       <form
@@ -142,6 +177,19 @@ export default function ProductsTab() {
             ))}
           </select>
         </div>
+
+        <select
+          value={form.creator_id}
+          onChange={(e) => setForm({ ...form, creator_id: e.target.value })}
+          className="w-full rounded-lg border border-black/10 px-3 py-2 text-sm"
+        >
+          <option value="">추천 크리에이터 (선택 — 이 상품을 추천할 크리에이터가 이미 정해졌으면 선택)</option>
+          {creators.map((c) => (
+            <option key={c.id} value={c.id}>
+              @{c.handle}
+            </option>
+          ))}
+        </select>
 
         <input
           required
@@ -249,6 +297,7 @@ export default function ProductsTab() {
                   <th className="px-4 py-3 font-medium text-foreground/50">가격</th>
                   <th className="px-4 py-3 font-medium text-foreground/50">수수료율</th>
                   <th className="px-4 py-3 font-medium text-foreground/50">상태</th>
+                  <th className="px-4 py-3 font-medium text-foreground/50">추천 크리에이터</th>
                 </tr>
               </thead>
               <tbody>
@@ -284,6 +333,54 @@ export default function ProductsTab() {
                     <td className="px-4 py-3">{p.price.toLocaleString()}원</td>
                     <td className="px-4 py-3">{p.commission_rate}%</td>
                     <td className="px-4 py-3">{STATUS_LABEL[p.status] ?? p.status}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-col gap-1.5">
+                        {p.recommended_by.length > 0 && (
+                          <div className="flex flex-wrap gap-1">
+                            {p.recommended_by.map((rec) => (
+                              <span
+                                key={rec.creator_id}
+                                className="flex items-center gap-1 rounded-full bg-black/5 px-2 py-0.5 text-xs text-foreground/70"
+                              >
+                                @{rec.handle}
+                                <button
+                                  onClick={() => handleRemoveRecommendation(p, rec.creator_id)}
+                                  className="text-foreground/40 hover:text-foreground/70"
+                                  aria-label={`@${rec.handle} 추천 해제`}
+                                >
+                                  ×
+                                </button>
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        <div className="flex items-center gap-1">
+                          <select
+                            value={newRecommendCreatorId[p.id] ?? ""}
+                            onChange={(e) =>
+                              setNewRecommendCreatorId((prev) => ({ ...prev, [p.id]: e.target.value }))
+                            }
+                            className="rounded-lg border border-black/10 px-1.5 py-1 text-xs"
+                          >
+                            <option value="">크리에이터 추가</option>
+                            {creators
+                              .filter((c) => !p.recommended_by.some((rec) => rec.creator_id === c.id))
+                              .map((c) => (
+                                <option key={c.id} value={c.id}>
+                                  @{c.handle}
+                                </option>
+                              ))}
+                          </select>
+                          <button
+                            onClick={() => handleAddRecommendation(p)}
+                            disabled={!newRecommendCreatorId[p.id] || addingRecommendId === p.id}
+                            className="text-xs text-brand underline disabled:opacity-40"
+                          >
+                            추가
+                          </button>
+                        </div>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>

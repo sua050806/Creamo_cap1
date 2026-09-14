@@ -31,6 +31,8 @@ class AdminProductSerializer(serializers.ModelSerializer):
     vendor_name = serializers.CharField(source="vendor.name", read_only=True)
     category_id = serializers.PrimaryKeyRelatedField(source="category", queryset=Category.objects.all())
     category_name = serializers.CharField(source="category.name", read_only=True)
+    # 이 상품을 추천 중인 크리에이터 목록(읽기 전용) — 연결 자체는 /admin/products/{id}/recommendations로.
+    recommended_by = serializers.SerializerMethodField()
 
     class Meta:
         model = Product
@@ -50,9 +52,16 @@ class AdminProductSerializer(serializers.ModelSerializer):
             "stock",
             "status",
             "created_at",
+            "recommended_by",
         ]
         read_only_fields = ["status", "created_at"]
         extra_kwargs = {"thumbnail": {"required": False}}
+
+    def get_recommended_by(self, product):
+        recommendations = product.recommendations.select_related("creator")
+        return [
+            {"creator_id": rec.creator_id, "handle": rec.creator.handle} for rec in recommendations
+        ]
 
 
 class AdminOrderItemSerializer(serializers.ModelSerializer):

@@ -31,12 +31,6 @@ export default function Header() {
         // 관리자는 구매자용 내비게이션(검색·카테고리·장바구니·마이페이지)이 필요 없어서
         // 관리자 콘솔·로그아웃만 남긴다.
         <nav className="ml-auto flex shrink-0 items-center gap-6 text-sm text-foreground/70">
-          <Link
-            href="/admin"
-            className="transition-colors hover:text-foreground"
-          >
-            시스템 관리
-          </Link>
           <button
             onClick={handleLogout}
             className="transition-colors hover:text-foreground"

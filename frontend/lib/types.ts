@@ -116,6 +116,7 @@ export interface AdminProduct {
   stock: Record<string, number>;
   status: string;
   created_at: string;
+  recommended_by: { creator_id: number; handle: string }[];
 }
 
 export interface AdminOrderItem {

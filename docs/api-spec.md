@@ -379,9 +379,30 @@ ADR-014 참고. 판매수·커미션 통계만으로 대시보드 핵심 기능�
 // request
 { "vendor_id": 5, "category_id": 2, "name": "무선 이어폰", "price": 39000, "commission_rate": 5.0,
   "short_description": "...", "description": "...",
-  "options": {"색상": ["블랙", "화이트"]}, "stock": {"블랙": 60, "화이트": 60} }
+  "options": {"색상": ["블랙", "화이트"]}, "stock": {"블랙": 60, "화이트": 60},
+  "creator_id": 3 }
 // response 201
-{ "id": 10, "name": "무선 이어폰" }
+{ "id": 10, "name": "무선 이어폰", "recommended_by": [ { "creator_id": 3, "handle": "gil-dong" } ], ... }
+```
+`creator_id`는 선택 필드 — 벤더가 "이 상품은 OO 크리에이터랑 협업하기로 했다"고 미리 알려준 경우,
+등록과 동시에 `CreatorRecommendation`까지 만들어서 그 크리에이터 프로필/추천 목록에 바로 뜨게 한다
+→ [decisions.md](decisions.md) ADR-034 참고. 문서에는 없던 필드로, 등록 화면에서 추천 크리에이터를
+따로 지정할 방법이 없다는 지적을 받고 구현 중 추가.
+
+### POST /admin/products/{id}/recommendations
+**인증**: 역할: admin — 등록 시점에 정하지 않았거나 나중에 추가/교체하고 싶을 때. 문서에는 없었지만
+구현 중 추가 → ADR-034 참고.
+```json
+// request
+{ "creator_id": 3 }
+// response 201 (전체 상품 정보 반환, recommended_by 갱신됨)
+```
+이미 같은 크리에이터가 추천 중이면 400.
+
+### DELETE /admin/products/{id}/recommendations/{creator_id}
+**인증**: 역할: admin
+```json
+// response 200 (전체 상품 정보 반환)
 ```
 
 ### PATCH /admin/products/{id}

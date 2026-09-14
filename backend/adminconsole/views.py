@@ -8,6 +8,7 @@ from rest_framework.views import APIView
 from accounts.models import CreatorProfile, User
 from catalog.models import Product
 from orders.models import OrderItem
+from recommendations.models import CreatorRecommendation
 from settlements.models import Settlement
 from vendors.models import VendorProfile
 
@@ -129,11 +130,31 @@ class AdminApplicationsView(APIView):
 
 
 class AdminProductsView(ListCreateAPIView):
-    """벤더로부터 오프라인으로 받은 상품 정보를 관리자가 대리 등록. api-spec.md 'GET/POST /admin/products' 참고."""
+    """벤더로부터 오프라인으로 받은 상품 정보를 관리자가 대리 등록. api-spec.md 'GET/POST /admin/products' 참고.
+
+    request에 creator_id(선택)를 같이 보내면, 상품을 만든 직후 바로 그 크리에이터의 추천으로도
+    연결해준다 — 벤더가 "이 상품은 OO 크리에이터랑 협업하기로 했다"고 미리 알려준 경우 한 화면에서
+    끝내기 위함 → ADR-034 참고."""
 
     permission_classes = [IsAdmin]
     serializer_class = AdminProductSerializer
     queryset = Product.objects.select_related("vendor", "category").all()
+
+    def perform_create(self, serializer):
+        product = serializer.save()
+
+        creator_id = self.request.data.get("creator_id")
+        if not creator_id:
+            return
+
+        try:
+            creator = CreatorProfile.objects.get(id=creator_id, status=CreatorProfile.Status.APPROVED)
+        except CreatorProfile.DoesNotExist:
+            raise ValidationError({"creator_id": "존재하지 않거나 승인되지 않은 크리에이터입니다."})
+
+        CreatorRecommendation.objects.create(
+            creator=creator, product=product, commission_rate=product.commission_rate
+        )
 
 
 class AdminProductDetailView(RetrieveUpdateAPIView):
@@ -143,6 +164,48 @@ class AdminProductDetailView(RetrieveUpdateAPIView):
     permission_classes = [IsAdmin]
     serializer_class = AdminProductSerializer
     queryset = Product.objects.select_related("vendor", "category").all()
+
+
+class AdminProductRecommendationsView(APIView):
+    """기존 상품에 추천 크리에이터를 연결/해제. 등록 시점에 안 정했거나, 나중에 크리에이터를 추가·
+    교체하고 싶을 때 사용 — CreatorRecommendation 생성을 원래 Django 관리자 사이트에서만 하던 것을
+    (ADR-021/022) 관리자 콘솔에서도 할 수 있게 보강 → ADR-034 참고. 개별 크리에이터 커미션율 조정은
+    여전히 Django 관리자 사이트에서(ADR-021 그대로 유지)."""
+
+    permission_classes = [IsAdmin]
+
+    def post(self, request, pk):
+        try:
+            product = Product.objects.get(id=pk)
+        except Product.DoesNotExist:
+            return Response({"error": "상품을 찾을 수 없습니다."}, status=http_status.HTTP_404_NOT_FOUND)
+
+        creator_id = request.data.get("creator_id")
+        try:
+            creator = CreatorProfile.objects.get(id=creator_id, status=CreatorProfile.Status.APPROVED)
+        except CreatorProfile.DoesNotExist:
+            return Response(
+                {"error": "존재하지 않거나 승인되지 않은 크리에이터입니다."},
+                status=http_status.HTTP_404_NOT_FOUND,
+            )
+
+        if CreatorRecommendation.objects.filter(creator=creator, product=product).exists():
+            return Response(
+                {"error": "이미 이 크리에이터가 추천 중인 상품입니다."}, status=http_status.HTTP_400_BAD_REQUEST
+            )
+
+        CreatorRecommendation.objects.create(
+            creator=creator, product=product, commission_rate=product.commission_rate
+        )
+        return Response(AdminProductSerializer(product).data, status=http_status.HTTP_201_CREATED)
+
+    def delete(self, request, pk, creator_id):
+        deleted, _ = CreatorRecommendation.objects.filter(product_id=pk, creator_id=creator_id).delete()
+        if not deleted:
+            return Response({"error": "추천 연결을 찾을 수 없습니다."}, status=http_status.HTTP_404_NOT_FOUND)
+
+        product = Product.objects.get(id=pk)
+        return Response(AdminProductSerializer(product).data)
 
 
 class AdminOrderItemsView(APIView):
