@@ -22,6 +22,8 @@ class Product(models.Model):
     )
     category = models.ForeignKey(Category, on_delete=models.PROTECT, related_name="products")
     name = models.CharField(max_length=200)
+    # 목록·상세 페이지 상단에 짧게 보여줄 한 줄 요약. description(상세 설명)과는 별개 필드.
+    short_description = models.CharField(max_length=100, blank=True)
     description = models.TextField(blank=True)
     price = models.PositiveIntegerField()
     # 이 상품을 추천한 크리에이터에게 지급할 기본 수수료 비율(%). 크리에이터가 추천 등록 시

@@ -59,7 +59,7 @@ export default async function ProductDetailPage({
 
             <h1 className="text-2xl font-semibold">{product.name}</h1>
             <p className="mt-1 text-xl font-semibold">{product.price.toLocaleString()}원</p>
-            <p className="mt-3 line-clamp-2 text-sm text-foreground/60">{product.description}</p>
+            <p className="mt-3 line-clamp-2 text-sm text-foreground/60">{product.short_description}</p>
 
             <div className="my-6 border-t border-black/5" />
 

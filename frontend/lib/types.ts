@@ -17,6 +17,7 @@ export interface ApiProduct {
 export interface ApiProductDetail {
   id: number;
   name: string;
+  short_description: string;
   description: string;
   price: number;
   commission_rate: string;
@@ -56,7 +57,8 @@ export interface PaginatedResponse<T> {
 // 관리자 콘솔 전용 타입. docs/api-spec.md '관리자' 절 참고.
 
 export interface AdminApplication {
-  type: "creator" | "vendor";
+  // 벤더는 로그인 계정이 없어 신청 심사 대상이 아니므로(ADR-028) 항상 "creator"만 온다.
+  type: "creator";
   id: number;
   name: string;
   detail: string;
@@ -89,6 +91,7 @@ export interface AdminProduct {
   category_id: number;
   category_name: string;
   name: string;
+  short_description: string;
   description: string;
   price: number;
   commission_rate: string;

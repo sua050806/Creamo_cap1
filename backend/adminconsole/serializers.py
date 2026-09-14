@@ -41,6 +41,7 @@ class AdminProductSerializer(serializers.ModelSerializer):
             "category_id",
             "category_name",
             "name",
+            "short_description",
             "description",
             "price",
             "commission_rate",

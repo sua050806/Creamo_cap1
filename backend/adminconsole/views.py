@@ -65,70 +65,46 @@ class AdminUserRoleView(APIView):
 
 
 class AdminApplicationsView(APIView):
-    """벤더·크리에이터 신규 가입 신청 통합 심사. api-spec.md '관리자' 절 참고."""
+    """크리에이터 신규 가입 신청 심사. api-spec.md '관리자' 절 참고.
+
+    벤더는 여기 포함하지 않는다 — 벤더는 로그인 계정이 없어(스펙 2.3) 본인이 신청서를 내는 게 아니라
+    관리자가 오프라인으로 받은 정보를 직접 입력해서 만드는 대상이라, "심사할 신청" 자체가 존재하지
+    않는다(관리자가 등록하기로 결정한 시점에 이미 승인된 것과 같음) → ADR-028 참고."""
 
     permission_classes = [IsAdmin]
 
     def get(self, request):
-        applications = []
-
-        for profile in CreatorProfile.objects.select_related("user", "category").order_by("-applied_at"):
-            applications.append(
-                {
-                    "type": "creator",
-                    "id": profile.id,
-                    "name": f"{profile.user.name} (@{profile.handle})",
-                    "detail": profile.category.name if profile.category else "-",
-                    "status": profile.get_status_display(),
-                }
-            )
-
-        for vendor in VendorProfile.objects.order_by("-id"):
-            applications.append(
-                {
-                    "type": "vendor",
-                    "id": vendor.id,
-                    "name": vendor.name,
-                    "detail": vendor.business_no,
-                    "status": vendor.get_status_display(),
-                }
-            )
-
+        applications = [
+            {
+                "type": "creator",
+                "id": profile.id,
+                "name": f"{profile.user.name} (@{profile.handle})",
+                "detail": profile.category.name if profile.category else "-",
+                "status": profile.get_status_display(),
+            }
+            for profile in CreatorProfile.objects.select_related("user", "category").order_by("-applied_at")
+        ]
         return Response(applications)
 
     def post(self, request):
-        app_type = request.data.get("type")
         app_id = request.data.get("id")
         decision = request.data.get("decision")
 
         if decision not in ("approve", "reject"):
             raise ValidationError({"decision": "decision은 approve 또는 reject여야 합니다."})
 
-        if app_type == "creator":
-            try:
-                profile = CreatorProfile.objects.get(id=app_id)
-            except CreatorProfile.DoesNotExist:
-                return Response({"error": "크리에이터 신청을 찾을 수 없습니다."}, status=http_status.HTTP_404_NOT_FOUND)
-            profile.status = (
-                CreatorProfile.Status.APPROVED if decision == "approve" else CreatorProfile.Status.REJECTED
-            )
-            if decision == "approve":
-                profile.approved_at = timezone.now()
-            profile.save()
-            return Response({"id": profile.id, "status": profile.status})
+        try:
+            profile = CreatorProfile.objects.get(id=app_id)
+        except CreatorProfile.DoesNotExist:
+            return Response({"error": "크리에이터 신청을 찾을 수 없습니다."}, status=http_status.HTTP_404_NOT_FOUND)
 
-        if app_type == "vendor":
-            try:
-                vendor = VendorProfile.objects.get(id=app_id)
-            except VendorProfile.DoesNotExist:
-                return Response({"error": "벤더 신청을 찾을 수 없습니다."}, status=http_status.HTTP_404_NOT_FOUND)
-            vendor.status = (
-                VendorProfile.Status.APPROVED if decision == "approve" else VendorProfile.Status.REJECTED
-            )
-            vendor.save()
-            return Response({"id": vendor.id, "status": vendor.status})
-
-        raise ValidationError({"type": "type은 creator 또는 vendor여야 합니다."})
+        profile.status = (
+            CreatorProfile.Status.APPROVED if decision == "approve" else CreatorProfile.Status.REJECTED
+        )
+        if decision == "approve":
+            profile.approved_at = timezone.now()
+        profile.save()
+        return Response({"id": profile.id, "status": profile.status})
 
 
 class AdminProductsView(ListCreateAPIView):

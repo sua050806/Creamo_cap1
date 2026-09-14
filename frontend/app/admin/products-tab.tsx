@@ -16,6 +16,7 @@ const EMPTY_FORM = {
   name: "",
   price: "",
   commission_rate: "",
+  short_description: "",
   description: "",
   options: "{}",
   stock: '{"기본": 0}',
@@ -60,6 +61,7 @@ export default function ProductsTab() {
           name: form.name,
           price: Number(form.price),
           commission_rate: form.commission_rate,
+          short_description: form.short_description,
           description: form.description,
           options,
           stock,
@@ -141,6 +143,14 @@ export default function ProductsTab() {
             className="rounded-lg border border-black/10 px-3 py-2 text-sm"
           />
         </div>
+
+        <input
+          placeholder="간단 설명 (목록·상세 상단에 한 줄로 표시)"
+          maxLength={100}
+          value={form.short_description}
+          onChange={(e) => setForm({ ...form, short_description: e.target.value })}
+          className="w-full rounded-lg border border-black/10 px-3 py-2 text-sm"
+        />
 
         <textarea
           placeholder="상세 설명"

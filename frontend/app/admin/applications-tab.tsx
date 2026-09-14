@@ -5,7 +5,9 @@ import StatusTag from "@/components/StatusTag";
 import { apiFetch } from "@/lib/api";
 import type { AdminApplication } from "@/lib/types";
 
-// 벤더·크리에이터 신규 가입 신청 통합 심사. GET/POST /admin/applications 연동.
+// 크리에이터 신규 가입 신청 심사. GET/POST /admin/applications 연동.
+// 벤더는 로그인 계정이 없어 본인이 신청하는 게 아니라 관리자가 정보를 직접 등록하는 대상이라
+// 여기 포함하지 않는다(ADR-028) — 벤더 목록은 "회원 관리" 탭에서 확인.
 export default function ApplicationsTab() {
   const [applications, setApplications] = useState<AdminApplication[] | null>(null);
 
@@ -23,9 +25,7 @@ export default function ApplicationsTab() {
     setApplications((prev) =>
       prev
         ? prev.map((a) =>
-            a.type === app.type && a.id === app.id
-              ? { ...a, status: decision === "approve" ? "승인" : "반려" }
-              : a
+            a.id === app.id ? { ...a, status: decision === "approve" ? "승인" : "반려" } : a
           )
         : prev
     );
@@ -40,17 +40,15 @@ export default function ApplicationsTab() {
       <table className="w-full border-collapse text-sm">
         <thead>
           <tr className="border-b border-black/10 text-left">
-            <th className="px-4 py-3 font-medium text-foreground/50">구분</th>
-            <th className="px-4 py-3 font-medium text-foreground/50">이름</th>
-            <th className="px-4 py-3 font-medium text-foreground/50">상세</th>
+            <th className="px-4 py-3 font-medium text-foreground/50">크리에이터</th>
+            <th className="px-4 py-3 font-medium text-foreground/50">관심 카테고리</th>
             <th className="px-4 py-3 font-medium text-foreground/50">상태</th>
             <th className="px-4 py-3 font-medium text-foreground/50">처리</th>
           </tr>
         </thead>
         <tbody>
           {applications.map((app) => (
-            <tr key={`${app.type}-${app.id}`} className="border-b border-black/5 last:border-0">
-              <td className="px-4 py-3">{app.type === "vendor" ? "벤더" : "크리에이터"}</td>
+            <tr key={app.id} className="border-b border-black/5 last:border-0">
               <td className="px-4 py-3 font-medium">{app.name}</td>
               <td className="px-4 py-3 text-foreground/60">{app.detail}</td>
               <td className="px-4 py-3">

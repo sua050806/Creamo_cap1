@@ -49,7 +49,7 @@ erDiagram
         string business_no
         string contact
         string settlement_account
-        string status "승인대기/승인/반려"
+        string status "승인/반려 — 관리자가 등록 시 바로 정하는 값, 크리에이터처럼 '심사 대기' 상태를 거치지 않음(ADR-028)"
     }
     Category {
         int id PK
@@ -61,6 +61,7 @@ erDiagram
         int vendor_id FK
         int category_id FK
         string name
+        string short_description "목록·상세 상단용 한 줄 요약, 3주차 API 구현 중 추가"
         text description
         int price
         decimal commission_rate "관리자/벤더가 설정하는 기본값"
@@ -148,6 +149,12 @@ ADR-008 참고. 크리에이터의 관심 분야를 상품 카테고리 체계�
 ### VendorProfile
 User와 연결되는 FK가 없는 독립 테이블 (스펙 2.3: 벤더는 시스템 로그인 계정이 없음). 관리자만 CRUD한다.
 
+`status`는 CreatorProfile과 같은 choices(승인대기/승인/반려)를 갖고 있지만, **"신청 심사" 대상은
+아니다** → [decisions.md](decisions.md) ADR-028 참고. 벤더는 스스로 신청서를 내는 주체가 아니라
+관리자가 오프라인으로 받은 정보를 직접 등록하는 대상이라, 등록하기로 결정한 시점에 이미 승인된 것과
+같아서 별도로 심사할 "대기 중인 신청"이 존재하지 않는다. `GET/POST /admin/applications`(신청 심사)는
+크리에이터만 다루고, 벤더 목록은 `GET /admin/vendors`(관리자 콘솔 "회원 관리" 탭)에서 확인한다.
+
 **(제안, 구현 보류)** 벤더 프로필 공개 페이지를 만들게 되면 `intro`(소개) 필드를 추가해야 함 —
 지금은 `CreatorProfile.intro`에 해당하는 필드가 없음 → [decisions.md](decisions.md) ADR-023 참고.
 
@@ -156,6 +163,9 @@ User와 연결되는 FK가 없는 독립 테이블 (스펙 2.3: 벤더는 시스
 표현한다.
 
 ### Product
+- `short_description`: 스펙 원본 표에는 없던 필드. 상품 상세 페이지 상단(가격 바로 아래)에 한 줄로
+  보여줄 짧은 요약 — 상세 페이지 하단의 긴 `description`을 그대로 잘라서 보여주면 의미가 다른 두
+  텍스트가 섞여서 부자연스럽다는 지적으로 3주차 API 구현 중 필드를 분리함(2026-09-14).
 - `price`: 정수형(원 단위, 소수점 없음) → [decisions.md](decisions.md) ADR-006 참고
 - `commission_rate`: 이 상품을 추천했을 때 적용되는 **기본 수수료 비율(%)**. 관리자가 벤더로부터 받은
   정보로 상품 등록 시 함께 입력한다. 크리에이터가 추천을 등록하면 이 값이 `CreatorRecommendation`에

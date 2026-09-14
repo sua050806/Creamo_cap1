@@ -30,6 +30,7 @@ class ProductDetailSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "name",
+            "short_description",
             "description",
             "price",
             "commission_rate",
