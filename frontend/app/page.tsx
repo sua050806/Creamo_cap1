@@ -2,6 +2,7 @@ import ProductSlider from "@/components/ProductSlider";
 import HorizontalSlider from "@/components/HorizontalSlider";
 import FeaturedProductCard from "@/components/FeaturedProductCard";
 import CategorySection from "@/components/CategorySection";
+import PromoBanner, { type PromoBannerSlide } from "@/components/PromoBanner";
 import { apiFetchPublic } from "@/lib/api";
 import type { ApiCreator, ApiCreatorProduct, ApiProduct, PaginatedResponse } from "@/lib/types";
 
@@ -12,7 +13,53 @@ const AVATAR_GRADIENTS = [
   "from-zinc-600 to-zinc-800",
 ];
 
-// 메인 페이지: 추천 크리에이터 → 신상품 → 카테고리 순서로 구성.
+// 상단 프로모션 배너 카피 — 마케팅 문구는 DB화하지 않고 여기 정적으로 둔다. productName이 있으면
+// 실제 상품과 이름으로 매칭해서 링크를 만들고(홈에서 이미 불러오는 GET /products 결과 재사용),
+// 못 찾으면 /category로 안전하게 대체한다.
+const PROMO_BANNERS: { image: string; label: string; title: string; description: string; buttonText: string; productName: string | null }[] = [
+  {
+    image: "/banners/banner-main.jpg",
+    label: "크리에이터와 함께 쇼핑하기",
+    title: "내가 믿는 사람이 추천하는 상품",
+    description: "크리에이터의 안목으로 고른 물건을 만나보세요",
+    buttonText: "둘러보기",
+    productName: null,
+  },
+  {
+    image: "/banners/banner-earbuds.jpg",
+    label: "테크",
+    title: "하루 종일 가벼운 무선 이어폰",
+    description: "한 번 충전으로 최대 8시간, 지금 만나보세요",
+    buttonText: "자세히 보기",
+    productName: "무선 이어폰",
+  },
+  {
+    image: "/banners/banner-cream.jpg",
+    label: "뷰티",
+    title: "건조한 계절, 촉촉함은 필수",
+    description: "고보습 수분크림으로 하루를 편안하게",
+    buttonText: "자세히 보기",
+    productName: "수분크림",
+  },
+  {
+    image: "/banners/banner-lotion.jpg",
+    label: "뷰티",
+    title: "메이크업도 순하게 지우는 법",
+    description: "자극 없이 깨끗하게, 클렌징 오일 하나면 충분해요",
+    buttonText: "자세히 보기",
+    productName: "클렌징 오일",
+  },
+  {
+    image: "/banners/banner-lamp.jpg",
+    label: "리빙",
+    title: "은은한 조명이 만드는 분위기",
+    description: "책상 위 작은 무드등으로 공간을 바꿔보세요",
+    buttonText: "자세히 보기",
+    productName: "무드등",
+  },
+];
+
+// 메인 페이지: 프로모션 배너 → 추천 크리에이터 → 신상품 → 카테고리 순서로 구성.
 // GET /creators, GET /creators/{id}/products, GET /products 연동.
 export default async function Home() {
   const creators = await apiFetchPublic<ApiCreator[]>("/creators");
@@ -22,9 +69,27 @@ export default async function Home() {
   const newProductsPage = await apiFetchPublic<PaginatedResponse<ApiProduct>>("/products");
   const newProducts = newProductsPage.results.slice(0, 8);
 
+  const promoSlides: PromoBannerSlide[] = PROMO_BANNERS.map((banner) => {
+    const matched = banner.productName
+      ? newProductsPage.results.find((p) => p.name === banner.productName)
+      : null;
+    return {
+      image: banner.image,
+      label: banner.label,
+      title: banner.title,
+      description: banner.description,
+      buttonText: banner.buttonText,
+      href: matched ? `/products/${matched.id}` : "/category",
+    };
+  });
+
   return (
     <main className="flex-1 px-6 py-8">
       <section>
+        <PromoBanner slides={promoSlides} />
+      </section>
+
+      <section className="mt-14">
         <h1 className="text-2xl font-semibold">추천 크리에이터</h1>
         <p className="mt-1 mb-6 text-sm text-foreground/60">
           마음에 드는 크리에이터를 팔로우하고, 그들이 추천하는 상품을 만나보세요.
