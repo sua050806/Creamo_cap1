@@ -68,6 +68,12 @@ CORS_ALLOWED_ORIGINS = [
 ]
 CORS_ALLOW_CREDENTIALS = True
 
+# Django의 CSRF 보호는 CORS와 별개로 요청의 Origin이 신뢰할 수 있는 곳인지도 검사한다.
+# 프론트(3000)와 백엔드(8000)가 포트가 달라 별도 출처로 취급되므로 명시적으로 등록해야 함.
+CSRF_TRUSTED_ORIGINS = [
+    'http://localhost:3000',
+]
+
 AUTH_USER_MODEL = 'accounts.User'
 
 ROOT_URLCONF = 'config.urls'

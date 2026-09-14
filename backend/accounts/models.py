@@ -9,6 +9,7 @@ class User(AbstractUser):
         ADMIN = "admin", "관리자"
 
     email = models.EmailField(unique=True)
+    name = models.CharField(max_length=50)
     role = models.CharField(max_length=10, choices=Role.choices, default=Role.BUYER)
 
     USERNAME_FIELD = "email"

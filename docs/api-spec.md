@@ -27,10 +27,22 @@
   "role": "buyer"
 }
 ```
-role이 `creator`면 가입과 동시에 `CreatorProfile`을 status=`pending`으로 같이 생성할지, 아니면 별도
-"프로필 작성" 단계를 한 번 더 거칠지는 **결정 필요** (스펙 2.2는 "회원가입·프로필 작성"을 순서상 분리해서
-설명하고 있어 별도 단계로 우선 가정 → 아래 `POST /creator/profile` 참고, 이 엔드포인트는 스펙 5번
-표에는 없던 것을 이번에 추가로 제안함)
+회원가입 시점엔 `role`만 정하고 `CreatorProfile`은 만들지 않는다 — 별도 "프로필 작성" 단계로 분리
+(2026-09-09 확정, `docs/decisions.md` 참고). `username`은 프론트에서 따로 입력받지 않고 서버가
+`email`과 동일하게 채운다(`User.USERNAME_FIELD`는 `email`이지만 Django의 `AbstractUser`가 여전히
+`username` 필드를 요구하기 때문 — `docs/erd.md` User 참고). 가입 성공 시 서버가 바로 로그인 처리까지
+해준다(세션 쿠키 발급) — 그래야 크리에이터가 가입 직후 바로 `POST /creator/profile`을 이어서 호출할
+수 있다.
+
+### POST /creator/profile (스펙 5번 표에는 없던 것, 이번에 추가)
+**인증**: 로그인 필요, role=`creator`인 본인만 (이미 프로필이 있으면 재생성 불가)
+```json
+// request
+{ "handle": "gil-dong", "category_id": 1, "intro": "가성비 IT 기기를 소개합니다" }
+// response 201
+{ "id": 1, "handle": "gil-dong", "category_id": 1, "intro": "...", "status": "승인대기" }
+```
+`status`는 항상 서버가 `승인대기`로 고정 — 클라이언트가 값을 보내도 무시한다.
 
 ### POST /auth/login
 **인증**: 없음
