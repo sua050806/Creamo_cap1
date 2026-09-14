@@ -1,4 +1,4 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 
 export class ApiError extends Error {
   status: number;
@@ -62,4 +62,12 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}): Prom
   }
 
   return body as T;
+}
+
+// 서버 컴포넌트에서 로그인 여부와 무관한 공개 GET 데이터를 가져올 때 쓰는 얇은 헬퍼.
+// document.cookie를 쓰지 않아 서버(Node.js) 환경에서도 안전하다.
+export async function apiFetchPublic<T>(path: string): Promise<T> {
+  const res = await fetch(`${API_BASE_URL}${path}`, { cache: "no-store" });
+  if (!res.ok) throw new ApiError(`${res.status} ${res.statusText}`, res.status);
+  return res.json() as Promise<T>;
 }

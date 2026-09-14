@@ -1,6 +1,16 @@
 from django.urls import path
 
-from .views import CreatorProfileCreateView, CsrfView, LoginView, LogoutView, MeView, SignupView
+from .views import (
+    CreatorDetailView,
+    CreatorListView,
+    CreatorProductsView,
+    CreatorProfileCreateView,
+    CsrfView,
+    LoginView,
+    LogoutView,
+    MeView,
+    SignupView,
+)
 
 urlpatterns = [
     path("auth/csrf", CsrfView.as_view()),
@@ -9,4 +19,7 @@ urlpatterns = [
     path("auth/logout", LogoutView.as_view()),
     path("auth/me", MeView.as_view()),
     path("creator/profile", CreatorProfileCreateView.as_view()),
+    path("creators", CreatorListView.as_view()),
+    path("creators/<int:pk>", CreatorDetailView.as_view()),
+    path("creators/<int:pk>/products", CreatorProductsView.as_view()),
 ]

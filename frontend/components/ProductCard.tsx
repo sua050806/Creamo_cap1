@@ -23,6 +23,7 @@ export default function ProductCard({
   name,
   price,
   vendorName,
+  thumbnail,
   compact = false,
 }: ProductCardProps) {
   const gradient = THUMBNAIL_GRADIENTS[name.charCodeAt(0) % THUMBNAIL_GRADIENTS.length];
@@ -34,11 +35,20 @@ export default function ProductCard({
         compact ? "p-2.5" : "rounded-2xl p-4"
       }`}
     >
-      <div
-        className={`rounded-lg bg-gradient-to-br ${gradient} ${
-          compact ? "mb-2 h-20" : "mb-3 h-28"
-        }`}
-      />
+      {thumbnail ? (
+        // eslint-disable-next-line @next/next/no-img-element -- 백엔드(다른 포트/도메인)가 주는 이미지라 next/image 설정 없이 그대로 사용
+        <img
+          src={thumbnail}
+          alt={name}
+          className={`w-full rounded-lg object-cover ${compact ? "mb-2 h-20" : "mb-3 h-28"}`}
+        />
+      ) : (
+        <div
+          className={`rounded-lg bg-gradient-to-br ${gradient} ${
+            compact ? "mb-2 h-20" : "mb-3 h-28"
+          }`}
+        />
+      )}
       <p className={`text-foreground ${compact ? "text-xs font-medium" : "font-medium"}`}>
         {name}
       </p>

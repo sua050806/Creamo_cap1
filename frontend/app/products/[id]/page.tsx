@@ -1,16 +1,23 @@
-import { mockCreators, mockProducts } from "@/lib/mock-data";
+import { apiFetchPublic, ApiError } from "@/lib/api";
+import type { ApiProductDetail } from "@/lib/types";
 import ProductActions from "./product-actions";
 
 const THUMBNAIL_GRADIENT = "from-zinc-100 to-zinc-300";
 
-// 상품 상세·결제 페이지. 지금은 목업 데이터, 3주차에 GET /products/{id} 연동 + 결제(PortOne) 예정.
+// 상품 상세 페이지. GET /products/{id} 연동. 결제(PortOne)는 다음 단계 예정.
 export default async function ProductDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const product = mockProducts.find((p) => p.id === Number(id));
+
+  let product: ApiProductDetail | null = null;
+  try {
+    product = await apiFetchPublic<ApiProductDetail>(`/products/${id}`);
+  } catch (err) {
+    if (!(err instanceof ApiError && err.status === 404)) throw err;
+  }
 
   if (!product) {
     return (
@@ -20,25 +27,33 @@ export default async function ProductDetailPage({
     );
   }
 
-  const recommendedCreator = mockCreators.find(
-    (creator) => creator.handle === product.recommendedCreatorHandle
-  );
-
   return (
     <main className="flex-1 px-6 py-8">
       <div className="mx-auto grid max-w-3xl gap-8 sm:grid-cols-2">
-        <div className={`h-72 rounded-2xl bg-gradient-to-br ${THUMBNAIL_GRADIENT}`} />
+        {product.thumbnail ? (
+          // eslint-disable-next-line @next/next/no-img-element -- 백엔드가 주는 이미지
+          <img
+            src={product.thumbnail}
+            alt={product.name}
+            className="h-72 w-full rounded-2xl object-cover"
+          />
+        ) : (
+          <div className={`h-72 rounded-2xl bg-gradient-to-br ${THUMBNAIL_GRADIENT}`} />
+        )}
 
         <div>
           <div className="mb-2 flex flex-wrap gap-1.5">
             <span className="rounded-full bg-black/5 px-2.5 py-1 text-xs text-foreground/60">
-              공급 벤더 {product.vendorName}
+              공급 벤더 {product.vendor.name}
             </span>
-            {recommendedCreator && (
-              <span className="rounded-full bg-black/5 px-2.5 py-1 text-xs text-foreground/60">
-                @{recommendedCreator.handle} 추천
+            {product.recommended_by.map((rec) => (
+              <span
+                key={rec.creator_id}
+                className="rounded-full bg-black/5 px-2.5 py-1 text-xs text-foreground/60"
+              >
+                @{rec.handle} 추천
               </span>
-            )}
+            ))}
           </div>
 
           <h1 className="text-2xl font-semibold">{product.name}</h1>

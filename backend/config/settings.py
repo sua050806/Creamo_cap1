@@ -157,6 +157,11 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 
+# 상품 썸네일 등 사용자가 업로드하는 파일. backend/ 전체가 docker-compose에서 볼륨 마운트되어 있어서
+# media/에 저장된 파일은 컨테이너를 내렸다 올려도 호스트 디스크에 그대로 남는다.
+MEDIA_URL = 'media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 

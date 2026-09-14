@@ -1,13 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import type { MockProduct } from "@/lib/mock-data";
 
 const buttonClass =
   "flex-1 rounded-full px-4 py-2.5 text-sm font-medium transition-opacity hover:opacity-90";
 
 // 옵션 선택·수량 조절·장바구니 담기/바로구매 버튼. 실제 담기/결제 로직은 3주차(장바구니 API, PG 연동)에서.
-export default function ProductActions({ product }: { product: MockProduct }) {
+export default function ProductActions({ product }: { product: { options: Record<string, string[]> } }) {
   const optionEntries = Object.entries(product.options);
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>(
     Object.fromEntries(optionEntries.map(([key, values]) => [key, values[0]]))

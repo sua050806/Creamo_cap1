@@ -68,6 +68,7 @@ erDiagram
         json options
         json stock "옵션 조합별 재고"
         string status "판매중/품절/비활성"
+        datetime created_at "신상품 정렬용, 3주차 API 구현 중 추가"
     }
     CreatorRecommendation {
         int id PK
@@ -166,6 +167,8 @@ User와 연결되는 FK가 없는 독립 테이블 (스펙 2.3: 벤더는 시스
   `{"블랙-S": 10, "블랙-M": 5, "화이트-S": 8}` (키 형식은 프론트·백엔드가 옵션을 조합할 때 동일한
   규칙으로 만들어야 함 — 구현 시 "색상-사이즈" 순서 등 규칙을 정해서 고정). 옵션이 없는 단일 상품은
   `{"기본": 120}`처럼 키 하나만 사용.
+- `created_at`: 스펙 원본 표에는 없던 필드. "신상품" 정렬(`ordering = ["-created_at"]`)에 실제
+  생성 시각이 필요해서 API 구현 중 추가함(2026-09-14).
 
 ### CreatorRecommendation
 크리에이터와 상품의 다대다 관계를 저장하는 중간 테이블. `commission_rate`는 크리에이터가 추천을 등록하는

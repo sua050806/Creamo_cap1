@@ -1,9 +1,16 @@
 import ProductCard from "@/components/ProductCard";
 import HorizontalSlider from "@/components/HorizontalSlider";
-import type { MockProduct } from "@/lib/mock-data";
+
+export interface ProductSliderItem {
+  id: number;
+  name: string;
+  price: number;
+  thumbnail?: string | null;
+  vendorName?: string;
+}
 
 export interface ProductSliderProps {
-  products: MockProduct[];
+  products: ProductSliderItem[];
   /** true면 크리에이터 패널처럼 좁은 공간 안에서 작은 카드로 넘기는 형태 */
   compact?: boolean;
 }
@@ -24,6 +31,7 @@ export default function ProductSlider({ products, compact = false }: ProductSlid
             name={product.name}
             price={product.price}
             vendorName={product.vendorName}
+            thumbnail={product.thumbnail ?? undefined}
             compact={compact}
           />
         </div>

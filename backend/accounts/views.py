@@ -1,12 +1,22 @@
 from django.contrib.auth import authenticate, login, logout
 from django.middleware.csrf import get_token
 from rest_framework import status
+from rest_framework.generics import ListAPIView, RetrieveAPIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from recommendations.models import CreatorRecommendation
+
 from .models import CreatorProfile
-from .serializers import CreatorProfileSerializer, SignupSerializer, UserSerializer
+from .serializers import (
+    CreatorDetailSerializer,
+    CreatorProfileSerializer,
+    CreatorPublicSerializer,
+    CreatorRecommendationProductSerializer,
+    SignupSerializer,
+    UserSerializer,
+)
 
 
 class CsrfView(APIView):
@@ -88,3 +98,25 @@ class CreatorProfileCreateView(APIView):
         serializer.is_valid(raise_exception=True)
         serializer.save(user=request.user)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+class CreatorListView(ListAPIView):
+    permission_classes = [AllowAny]
+    serializer_class = CreatorPublicSerializer
+    queryset = CreatorProfile.objects.filter(status=CreatorProfile.Status.APPROVED)
+
+
+class CreatorDetailView(RetrieveAPIView):
+    permission_classes = [AllowAny]
+    serializer_class = CreatorDetailSerializer
+    queryset = CreatorProfile.objects.filter(status=CreatorProfile.Status.APPROVED)
+
+
+class CreatorProductsView(ListAPIView):
+    permission_classes = [AllowAny]
+    serializer_class = CreatorRecommendationProductSerializer
+
+    def get_queryset(self):
+        return CreatorRecommendation.objects.filter(creator_id=self.kwargs["pk"]).select_related(
+            "product"
+        )
