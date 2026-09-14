@@ -309,3 +309,32 @@ ADR-023에서 "벤더 프로필 페이지가 생기기 전까지는 `VendorProfi
 있던(0005에서 길게 늘리기 전) 원래 한 줄 설명과 내용이 정확히 일치해서, 그 문구를 그대로 재사용해서
 채움(`catalog/migrations/0006_product_short_description.py`). 관리자 상품 등록 폼에도 "간단 설명"
 입력칸을 추가해서 새로 등록하는 상품도 두 필드를 각각 채울 수 있게 함.
+
+## ADR-030. VendorProfile.status를 "활성/판매중단" 토글로 재정의 + 회원 관리에 벤더별 상품 목록 추가
+**상태**: 확정 (2026-09-14)
+
+ADR-028에서 `VendorProfile.status`를 신청 심사 화면에서만 빼놨는데, 그 필드 자체는 여전히
+승인대기/승인/반려(신청 심사용 choices)로 남아 있어서 의미가 붕 떠 있었음. ADR-023이 예전에 제안했던
+"활성/비활성 토글로 재활용"을 이번에 실제로 구현하기로 함 — 회원 관리 탭에 벤더별 공급 상품 목록을
+보여달라는 요청을 처리하다가, 자연스럽게 "이 벤더 상품을 통째로 판매 중단하는 기능도 있으면 좋겠다"는
+후속 요청으로 이어짐.
+
+**모델 변경**: `VendorProfile.Status`를 `pending/approved/rejected`(승인대기/승인/반려) 3개에서
+`active/suspended`(활성/판매중단) 2개로 바꿈. `pending`이 있을 이유가 없어졌으므로(ADR-028) 아예
+choices에서 제거하고, 기본값도 `active`로 바꿔서 관리자가 벤더를 등록하는 순간 바로 정상 노출되게
+함(원래 기본값 `pending`이었으면 새로 등록한 벤더 상품이 아무것도 안 보이는 채로 남는 함정이 있었음).
+기존 데이터는 `vendors/migrations/0002_vendor_status_active_suspended.py`에서
+`pending`/`approved` → `active`, `rejected` → `suspended`로 변환.
+
+**"판매 중단"의 구현 방식**: 개별 `Product.status`를 건드리는 대신(예: 벤더의 상품 9개를 전부
+`inactive`로 바꿔버리면, 원래 `sold_out`이었던 상품과 구분이 안 되고 되돌릴 때 원래 상태를 복원하기
+까다로움), **조회 시점에 벤더 상태로 필터링**하는 방식을 택함 — `ProductListView`/`ProductDetailView`
+(`catalog/views.py`)와 `CreatorProductsView`(`accounts/views.py`, 크리에이터 추천 목록)가 전부
+`vendor__status`를 확인해서 판매중단된 벤더의 상품을 걸러낸다. 이렇게 하면 개별 상품 상태를 전혀
+건드리지 않고 즉시·안전하게 껐다 켤 수 있고, 되돌릴 때도 완벽하게 원래 상태 그대로 복원됨(별도
+백업/복원 로직 불필요).
+
+**API**: `PATCH /admin/vendors/{id}/status`(관리자 콘솔 전용, `{"status": "active"|"suspended"}`)
+추가. 회원 관리 탭의 벤더 필터는 표 대신 카드 목록으로 바꿔서, 벤더 하나당 기본 정보 + 활성/판매중단
+토글 버튼 + 그 벤더가 공급하는 상품 목록(`GET /admin/products`를 `vendor_id`로 클라이언트에서
+그룹핑, 별도 API 안 만듦)을 같이 보여줌.

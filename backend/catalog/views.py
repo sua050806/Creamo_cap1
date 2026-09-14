@@ -2,6 +2,8 @@ from rest_framework.generics import ListAPIView, RetrieveAPIView
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import AllowAny
 
+from vendors.models import VendorProfile
+
 from .models import Category, Product
 from .serializers import CategorySerializer, ProductDetailSerializer, ProductListSerializer
 
@@ -22,7 +24,10 @@ class ProductListView(ListAPIView):
     pagination_class = ProductPagination
 
     def get_queryset(self):
-        queryset = Product.objects.filter(status=Product.Status.SELLING)
+        # 판매 중단된 벤더의 상품은 목록에서 완전히 숨긴다 → ADR-030 참고.
+        queryset = Product.objects.filter(
+            status=Product.Status.SELLING, vendor__status=VendorProfile.Status.ACTIVE
+        )
 
         category_id = self.request.query_params.get("category")
         if category_id:
@@ -41,5 +46,6 @@ class ProductListView(ListAPIView):
 
 class ProductDetailView(RetrieveAPIView):
     permission_classes = [AllowAny]
-    queryset = Product.objects.all()
+    # 상세 페이지 직접 접근(URL 공유 등)도 막아야 하므로 목록과 동일하게 벤더 판매 중단 여부를 반영.
+    queryset = Product.objects.filter(vendor__status=VendorProfile.Status.ACTIVE)
     serializer_class = ProductDetailSerializer

@@ -7,6 +7,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from recommendations.models import CreatorRecommendation
+from vendors.models import VendorProfile
 
 from .models import CreatorProfile
 from .serializers import (
@@ -117,6 +118,9 @@ class CreatorProductsView(ListAPIView):
     serializer_class = CreatorRecommendationProductSerializer
 
     def get_queryset(self):
-        return CreatorRecommendation.objects.filter(creator_id=self.kwargs["pk"]).select_related(
-            "product"
+        # 판매 중단된 벤더의 상품은 크리에이터 추천 목록에서도 숨긴다 → ADR-030 참고.
+        return (
+            CreatorRecommendation.objects.filter(creator_id=self.kwargs["pk"])
+            .exclude(product__vendor__status=VendorProfile.Status.SUSPENDED)
+            .select_related("product")
         )

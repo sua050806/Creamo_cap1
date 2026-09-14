@@ -71,7 +71,7 @@ export interface AdminVendor {
   business_no: string;
   contact: string;
   settlement_account: string;
-  status: string;
+  status: "active" | "suspended";
 }
 
 export interface AdminUser {

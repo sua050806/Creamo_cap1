@@ -32,6 +32,27 @@ class AdminVendorsView(APIView):
         return Response(AdminVendorSerializer(vendors, many=True).data)
 
 
+class AdminVendorStatusView(APIView):
+    """벤더 활성/판매중단 전환. 판매중단으로 바꾸면 이 벤더의 상품이 목록·상세·크리에이터 추천에서
+    전부 숨겨진다(개별 Product.status는 건드리지 않고 조회 시점에 필터링) → ADR-030 참고."""
+
+    permission_classes = [IsAdmin]
+
+    def patch(self, request, pk):
+        try:
+            vendor = VendorProfile.objects.get(id=pk)
+        except VendorProfile.DoesNotExist:
+            return Response({"error": "벤더를 찾을 수 없습니다."}, status=http_status.HTTP_404_NOT_FOUND)
+
+        new_status = request.data.get("status")
+        if new_status not in VendorProfile.Status.values:
+            raise ValidationError({"status": f"status는 {VendorProfile.Status.values} 중 하나여야 합니다."})
+
+        vendor.status = new_status
+        vendor.save()
+        return Response({"id": vendor.id, "status": vendor.status})
+
+
 class AdminUsersView(APIView):
     """회원 관리 화면: 가입한 회원(일반 회원·크리에이터·관리자) 전체 목록. 벤더는 로그인 계정이 없어
     별도로 GET /admin/vendors에서 조회한다."""

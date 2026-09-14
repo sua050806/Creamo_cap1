@@ -70,7 +70,8 @@
 ## 상품
 
 ### GET /products
-**인증**: 없음
+**인증**: 없음. 판매중단(`suspended`)된 벤더의 상품은 목록에서 제외됨 → [decisions.md](decisions.md)
+ADR-030 참고.
 쿼리 파라미터: `?category={id}&creator={id}&page={n}`
 ```json
 // response 200
@@ -99,6 +100,7 @@
 ```
 `short_description`은 스펙 원본 표에는 없던 필드로, 상세 페이지 상단 미리보기용 한 줄 요약이다 —
 `description`(상세 설명)을 그대로 잘라서 보여주면 부자연스러워서 3주차 API 구현 중 분리함.
+벤더가 판매중단 상태면 이 엔드포인트는 404를 반환한다(직접 URL 접근도 막음, ADR-030).
 
 ## 카테고리
 
@@ -132,7 +134,8 @@
 // response 200
 [ { "id": 10, "name": "무선 이어폰", "price": 39000, "commission_rate": 5.0 } ]
 ```
-`commission_rate`는 `Product`에 관리자가 미리 설정해둔 값을 그대로 보여주는 것.
+`commission_rate`는 `Product`에 관리자가 미리 설정해둔 값을 그대로 보여주는 것. 판매중단된 벤더의
+상품은 여기서도 제외됨(ADR-030).
 
 ### POST /creator/recommendations
 **인증**: 역할: creator, status=approved (미승인이면 403)
@@ -286,7 +289,18 @@ ADR-014 참고. 판매수·커미션 통계만으로 대시보드 핵심 기능�
 ```json
 // response 200
 [ { "id": 5, "name": "OO전자", "business_no": "123-45-67890", "contact": "vendor@example.com",
-    "settlement_account": "국민 123-456-789", "status": "approved" } ]
+    "settlement_account": "국민 123-456-789", "status": "active" } ]  // active | suspended
+```
+
+### PATCH /admin/vendors/{id}/status
+**인증**: 역할: admin — 벤더 판매 활성/중단 토글 → [decisions.md](decisions.md) ADR-030 참고. 개별
+`Product.status`는 건드리지 않고, 판매중단 시 이 벤더의 상품 전부가 `GET /products`,
+`GET /products/{id}`, `GET /creators/{id}/products`에서 조회 시점에 걸러진다.
+```json
+// request
+{ "status": "suspended" }  // active | suspended
+// response 200
+{ "id": 5, "status": "suspended" }
 ```
 
 ### GET /admin/applications

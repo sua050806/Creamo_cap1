@@ -49,7 +49,7 @@ erDiagram
         string business_no
         string contact
         string settlement_account
-        string status "승인/반려 — 관리자가 등록 시 바로 정하는 값, 크리에이터처럼 '심사 대기' 상태를 거치지 않음(ADR-028)"
+        string status "active/suspended — 신청 심사용이 아니라 판매 활성/중단 토글(ADR-028, ADR-030)"
     }
     Category {
         int id PK
@@ -149,11 +149,16 @@ ADR-008 참고. 크리에이터의 관심 분야를 상품 카테고리 체계�
 ### VendorProfile
 User와 연결되는 FK가 없는 독립 테이블 (스펙 2.3: 벤더는 시스템 로그인 계정이 없음). 관리자만 CRUD한다.
 
-`status`는 CreatorProfile과 같은 choices(승인대기/승인/반려)를 갖고 있지만, **"신청 심사" 대상은
-아니다** → [decisions.md](decisions.md) ADR-028 참고. 벤더는 스스로 신청서를 내는 주체가 아니라
-관리자가 오프라인으로 받은 정보를 직접 등록하는 대상이라, 등록하기로 결정한 시점에 이미 승인된 것과
-같아서 별도로 심사할 "대기 중인 신청"이 존재하지 않는다. `GET/POST /admin/applications`(신청 심사)는
-크리에이터만 다루고, 벤더 목록은 `GET /admin/vendors`(관리자 콘솔 "회원 관리" 탭)에서 확인한다.
+`status`는 처음엔 CreatorProfile과 같은 승인대기/승인/반려 choices를 그대로 가져다 썼지만,
+**"신청 심사" 대상이 아니라는 게 밝혀지면서**(벤더는 스스로 신청서를 내는 주체가 아니라 관리자가
+오프라인으로 받은 정보를 직접 등록하는 대상이라, 등록 시점에 이미 승인된 것과 같음) → [decisions.md]
+(decisions.md) ADR-028 참고, `active`(활성)/`suspended`(판매중단) 2개 값으로 바꿔서 **"이 벤더의
+상품을 통째로 판매 중단"하는 토글**로 재정의함 → ADR-030 참고. 기본값도 `active`로 바꿔서 벤더를
+등록하는 즉시 상품이 정상 노출된다. `suspended`로 바꾸면 `ProductListView`/`ProductDetailView`/
+`CreatorProductsView`가 조회 시점에 걸러내서 이 벤더의 상품이 카탈로그·상세·크리에이터 추천 어디서도
+안 보이게 된다(개별 `Product.status`는 그대로 유지 — 되돌리면 원래 상태 그대로 복원).
+`GET/POST /admin/applications`(신청 심사)는 크리에이터만 다루고, 벤더 목록·상태 변경은
+`GET /admin/vendors`, `PATCH /admin/vendors/{id}/status`(관리자 콘솔 "회원 관리" 탭)에서 확인·조작한다.
 
 **(제안, 구현 보류)** 벤더 프로필 공개 페이지를 만들게 되면 `intro`(소개) 필드를 추가해야 함 —
 지금은 `CreatorProfile.intro`에 해당하는 필드가 없음 → [decisions.md](decisions.md) ADR-023 참고.
