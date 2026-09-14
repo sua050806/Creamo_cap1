@@ -25,20 +25,12 @@ export default function CategorySection() {
       <p className="mt-1 mb-4 text-sm text-foreground/60">관심 있는 카테고리의 상품을 둘러보세요.</p>
 
       <div className="mb-6 flex gap-2">
-        <button
-          onClick={() => setSelectedCategoryId(null)}
-          className={`rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors ${
-            selectedCategoryId === null
-              ? "bg-brand text-brand-foreground"
-              : "bg-black/5 text-foreground/60 hover:bg-black/10"
-          }`}
-        >
-          전체
-        </button>
         {mockCategories.map((category) => (
           <button
             key={category.id}
-            onClick={() => setSelectedCategoryId(category.id)}
+            onClick={() =>
+              setSelectedCategoryId((prev) => (prev === category.id ? null : category.id))
+            }
             className={`rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors ${
               selectedCategoryId === category.id
                 ? "bg-brand text-brand-foreground"
