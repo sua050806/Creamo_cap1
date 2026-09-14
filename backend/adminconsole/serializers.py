@@ -51,7 +51,8 @@ class AdminProductSerializer(serializers.ModelSerializer):
             "status",
             "created_at",
         ]
-        read_only_fields = ["thumbnail", "status", "created_at"]
+        read_only_fields = ["status", "created_at"]
+        extra_kwargs = {"thumbnail": {"required": False}}
 
 
 class AdminOrderItemSerializer(serializers.ModelSerializer):

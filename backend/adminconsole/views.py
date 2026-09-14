@@ -1,7 +1,7 @@
 from django.utils import timezone
 from rest_framework import status as http_status
 from rest_framework.exceptions import ValidationError
-from rest_framework.generics import ListCreateAPIView
+from rest_framework.generics import ListCreateAPIView, RetrieveUpdateAPIView
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -130,6 +130,15 @@ class AdminApplicationsView(APIView):
 
 class AdminProductsView(ListCreateAPIView):
     """벤더로부터 오프라인으로 받은 상품 정보를 관리자가 대리 등록. api-spec.md 'GET/POST /admin/products' 참고."""
+
+    permission_classes = [IsAdmin]
+    serializer_class = AdminProductSerializer
+    queryset = Product.objects.select_related("vendor", "category").all()
+
+
+class AdminProductDetailView(RetrieveUpdateAPIView):
+    """등록된 상품 수정용 — 이미지(thumbnail) 업로드/교체가 주 용도. 문서에는 없었지만(원래 GET/POST만
+    명시) 상품 등록 화면에서 이미지 첨부 기능을 만들며 구현 중 추가."""
 
     permission_classes = [IsAdmin]
     serializer_class = AdminProductSerializer

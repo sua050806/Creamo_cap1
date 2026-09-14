@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
 import { apiFetch } from "@/lib/api";
 import type { AdminProduct, AdminVendor, ApiCategory } from "@/lib/types";
 
@@ -22,14 +22,18 @@ const EMPTY_FORM = {
   stock: '{"기본": 0}',
 };
 
-// 벤더로부터 오프라인으로 받은 상품 정보를 관리자가 대리 등록. GET/POST /admin/products 연동.
+// 벤더로부터 오프라인으로 받은 상품 정보를 관리자가 대리 등록. GET/POST /admin/products,
+// PATCH /admin/products/{id}(이미지 업로드/교체 전용) 연동.
 export default function ProductsTab() {
   const [products, setProducts] = useState<AdminProduct[] | null>(null);
   const [vendors, setVendors] = useState<AdminVendor[]>([]);
   const [categories, setCategories] = useState<ApiCategory[]>([]);
   const [form, setForm] = useState(EMPTY_FORM);
+  const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
+  const [fileInputKey, setFileInputKey] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [uploadingId, setUploadingId] = useState<number | null>(null);
 
   useEffect(() => {
     apiFetch<AdminProduct[]>("/admin/products").then(setProducts).catch(() => setProducts([]));
@@ -51,28 +55,54 @@ export default function ProductsTab() {
       return;
     }
 
+    const formData = new FormData();
+    formData.append("vendor_id", form.vendor_id);
+    formData.append("category_id", form.category_id);
+    formData.append("name", form.name);
+    formData.append("price", form.price);
+    formData.append("commission_rate", form.commission_rate);
+    formData.append("short_description", form.short_description);
+    formData.append("description", form.description);
+    formData.append("options", JSON.stringify(options));
+    formData.append("stock", JSON.stringify(stock));
+    if (thumbnailFile) formData.append("thumbnail", thumbnailFile);
+
     setSubmitting(true);
     try {
       const created = await apiFetch<AdminProduct>("/admin/products", {
         method: "POST",
-        body: JSON.stringify({
-          vendor_id: Number(form.vendor_id),
-          category_id: Number(form.category_id),
-          name: form.name,
-          price: Number(form.price),
-          commission_rate: form.commission_rate,
-          short_description: form.short_description,
-          description: form.description,
-          options,
-          stock,
-        }),
+        body: formData,
       });
       setProducts((prev) => (prev ? [created, ...prev] : [created]));
       setForm(EMPTY_FORM);
+      setThumbnailFile(null);
+      setFileInputKey((k) => k + 1);
     } catch (err) {
       setError(err instanceof Error ? err.message : "등록에 실패했습니다.");
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleThumbnailReplace = async (product: AdminProduct, e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append("thumbnail", file);
+
+    setUploadingId(product.id);
+    try {
+      const updated = await apiFetch<AdminProduct>(`/admin/products/${product.id}`, {
+        method: "PATCH",
+        body: formData,
+      });
+      setProducts((prev) => (prev ? prev.map((p) => (p.id === product.id ? updated : p)) : prev));
+    } catch {
+      setError("이미지 업로드에 실패했습니다.");
+    } finally {
+      setUploadingId(null);
+      e.target.value = "";
     }
   };
 
@@ -181,6 +211,17 @@ export default function ProductsTab() {
           </div>
         </div>
 
+        <div>
+          <label className="mb-1 block text-xs text-foreground/50">상품 이미지 (선택)</label>
+          <input
+            key={fileInputKey}
+            type="file"
+            accept="image/*"
+            onChange={(e) => setThumbnailFile(e.target.files?.[0] ?? null)}
+            className="w-full text-sm"
+          />
+        </div>
+
         {error && <p className="text-xs text-red-500">{error}</p>}
 
         <button
@@ -201,6 +242,7 @@ export default function ProductsTab() {
             <table className="w-full border-collapse text-sm">
               <thead>
                 <tr className="border-b border-black/10 text-left">
+                  <th className="px-4 py-3 font-medium text-foreground/50">이미지</th>
                   <th className="px-4 py-3 font-medium text-foreground/50">상품명</th>
                   <th className="px-4 py-3 font-medium text-foreground/50">벤더</th>
                   <th className="px-4 py-3 font-medium text-foreground/50">카테고리</th>
@@ -212,6 +254,30 @@ export default function ProductsTab() {
               <tbody>
                 {products.map((p) => (
                   <tr key={p.id} className="border-b border-black/5 last:border-0">
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        {p.thumbnail ? (
+                          // eslint-disable-next-line @next/next/no-img-element -- 백엔드가 주는 이미지
+                          <img
+                            src={p.thumbnail}
+                            alt={p.name}
+                            className="h-10 w-10 rounded-lg object-cover"
+                          />
+                        ) : (
+                          <div className="h-10 w-10 rounded-lg bg-black/5" />
+                        )}
+                        <label className="cursor-pointer text-xs text-brand underline">
+                          {uploadingId === p.id ? "업로드 중..." : p.thumbnail ? "변경" : "추가"}
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            disabled={uploadingId === p.id}
+                            onChange={(e) => handleThumbnailReplace(p, e)}
+                          />
+                        </label>
+                      </div>
+                    </td>
                     <td className="px-4 py-3 font-medium">{p.name}</td>
                     <td className="px-4 py-3 text-foreground/60">{p.vendor_name}</td>
                     <td className="px-4 py-3 text-foreground/60">{p.category_name}</td>

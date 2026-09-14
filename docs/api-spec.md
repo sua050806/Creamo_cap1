@@ -333,7 +333,8 @@ ADR-014 참고. 판매수·커미션 통계만으로 대시보드 핵심 기능�
 **인증**: 역할: admin
 
 ### POST /admin/products
-**인증**: 역할: admin — 벤더로부터 오프라인으로 받은 정보를 대리 입력
+**인증**: 역할: admin — 벤더로부터 오프라인으로 받은 정보를 대리 입력. `multipart/form-data`로 보내면
+`thumbnail` 파일을 같이 첨부할 수 있다(선택) → [decisions.md](decisions.md) ADR-031 참고.
 ```json
 // request
 { "vendor_id": 5, "category_id": 2, "name": "무선 이어폰", "price": 39000, "commission_rate": 5.0,
@@ -341,6 +342,17 @@ ADR-014 참고. 판매수·커미션 통계만으로 대시보드 핵심 기능�
   "options": {"색상": ["블랙", "화이트"]}, "stock": {"블랙": 60, "화이트": 60} }
 // response 201
 { "id": 10, "name": "무선 이어폰" }
+```
+
+### PATCH /admin/products/{id}
+**인증**: 역할: admin — 등록된 상품 수정용, 주로 이미지 업로드/교체가 목적. 문서에는 없었지만(원래
+GET/POST만 명시) 시드 데이터로 만들어져 이미지가 없는 상품에도 나중에 이미지를 붙일 방법이 필요해서
+구현 중 추가 → ADR-031 참고. `multipart/form-data`로 `thumbnail` 파일만 보내도 되고(부분 수정),
+다른 필드도 같이 바꿀 수 있다.
+```json
+// request (multipart/form-data, thumbnail 파일 첨부)
+// response 200
+{ "id": 10, "name": "무선 이어폰", "thumbnail": "http://.../media/products/xxx.jpg", ... }
 ```
 
 ### GET /admin/order-items

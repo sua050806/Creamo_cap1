@@ -25,8 +25,11 @@ async function ensureCsrfCookie() {
 // GET이 아닌 요청에는 CSRF 토큰을 헤더에 실어 보낸다.
 export async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
   const method = (options.method ?? "GET").toUpperCase();
+  // FormData(파일 업로드)는 브라우저가 Content-Type을 boundary까지 포함해서 자동으로 붙여야 하므로,
+  // 우리가 직접 Content-Type을 지정하면 안 된다.
+  const isFormData = options.body instanceof FormData;
   const headers: Record<string, string> = {
-    "Content-Type": "application/json",
+    ...(isFormData ? {} : { "Content-Type": "application/json" }),
     ...(options.headers as Record<string, string> | undefined),
   };
 
