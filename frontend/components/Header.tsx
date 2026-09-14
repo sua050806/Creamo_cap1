@@ -42,6 +42,11 @@ export default function Header() {
 
           {isLoading ? null : user ? (
             <>
+              {user.role === "admin" && (
+                <Link href="/admin" className="transition-colors hover:text-foreground">
+                  관리자
+                </Link>
+              )}
               <Link href="/mypage" className="transition-colors hover:text-foreground">
                 {user.name}님
               </Link>
