@@ -12,6 +12,7 @@ export interface ApiProduct {
   price: number;
   thumbnail: string | null;
   status: string;
+  recommended_by: { creator_id: number; handle: string }[];
 }
 
 export interface ApiProductDetail {

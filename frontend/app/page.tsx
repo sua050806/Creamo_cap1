@@ -79,6 +79,7 @@ export default async function Home() {
               name={product.name}
               price={product.price}
               thumbnail={product.thumbnail}
+              recommendedBy={product.recommended_by}
             />
           ))}
         </HorizontalSlider>

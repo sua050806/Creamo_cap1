@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import ProductCard from "@/components/ProductCard";
 import { useAuth } from "@/lib/auth-context";
-import { apiFetch } from "@/lib/api";
-import type { ApiCart } from "@/lib/types";
+import { apiFetch, apiFetchPublic } from "@/lib/api";
+import type { ApiCart, ApiProduct, PaginatedResponse } from "@/lib/types";
 
 const buttonClass =
   "inline-block rounded-full bg-brand px-4 py-2.5 text-center text-sm font-medium text-brand-foreground transition-opacity hover:opacity-90";
@@ -15,11 +16,20 @@ export default function CartPage() {
   const { user, isLoading } = useAuth();
   const [cart, setCart] = useState<ApiCart | null>(null);
   const [busyItemId, setBusyItemId] = useState<number | null>(null);
+  const [suggestions, setSuggestions] = useState<ApiProduct[]>([]);
 
   useEffect(() => {
     if (!user) return;
     apiFetch<ApiCart>("/cart").then(setCart).catch(() => setCart(null));
   }, [user]);
+
+  // 비어있을 때 보여줄 추천 상품 — 신상품 최신순 몇 개를 그대로 재사용(둘러볼 거리를 만들어 화면이
+  // 텅 비어 보이지 않게 하기 위함).
+  useEffect(() => {
+    apiFetchPublic<PaginatedResponse<ApiProduct>>("/products")
+      .then((res) => setSuggestions(res.results.slice(0, 4)))
+      .catch(() => setSuggestions([]));
+  }, []);
 
   const changeQuantity = async (itemId: number, quantity: number) => {
     if (quantity < 1) return;
@@ -73,7 +83,32 @@ export default function CartPage() {
       {cart === null ? (
         <p className="text-sm text-foreground/40">불러오는 중...</p>
       ) : cart.items.length === 0 ? (
-        <p className="text-sm text-foreground/40">장바구니가 비어 있습니다.</p>
+        <div>
+          <div className="mx-auto max-w-sm rounded-2xl border border-black/5 bg-white px-8 py-10 text-center shadow-sm">
+            <p className="text-base font-medium text-foreground">장바구니가 비어 있습니다.</p>
+            <p className="mt-2 text-sm text-foreground/50">마음에 드는 상품을 담아보세요.</p>
+            <Link href="/category" className={`${buttonClass} mt-5`}>
+              쇼핑하러 가기
+            </Link>
+          </div>
+
+          {suggestions.length > 0 && (
+            <div className="mx-auto mt-12 max-w-3xl">
+              <h2 className="mb-4 text-sm font-medium text-foreground/50">이런 상품은 어때요?</h2>
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                {suggestions.map((product) => (
+                  <ProductCard
+                    key={product.id}
+                    id={product.id}
+                    name={product.name}
+                    price={product.price}
+                    thumbnail={product.thumbnail ?? undefined}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       ) : (
         <div className="mx-auto max-w-2xl">
           <div className="flex flex-col gap-3">

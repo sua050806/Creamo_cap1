@@ -78,10 +78,14 @@ ADR-030 참고.
 {
   "count": 42,
   "results": [
-    { "id": 10, "name": "무선 이어폰", "price": 39000, "thumbnail": "...", "status": "판매중" }
+    { "id": 10, "name": "무선 이어폰", "price": 39000, "thumbnail": "...", "status": "판매중",
+      "recommended_by": [ { "creator_id": 3, "handle": "gil-dong" } ] }
   ]
 }
 ```
+`recommended_by`는 원래 상세(`GET /products/{id}`)에만 있던 필드인데, 홈 화면 "신상품" 슬라이드에서
+어떤 크리에이터가 이 상품을 추천 중인지 배지로 보여주기 위해 목록에도 추가함(구현하면서 화면에 맞게
+보강한 또 다른 사례).
 
 ### GET /products/{id}
 **인증**: 없음

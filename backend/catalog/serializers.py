@@ -12,9 +12,19 @@ class CategorySerializer(serializers.ModelSerializer):
 
 
 class ProductListSerializer(serializers.ModelSerializer):
+    # 신상품 슬라이드 등에서 "이 상품을 추천하는 크리에이터"를 같이 보여주기 위해 상세 화면과
+    # 동일한 필드를 목록에도 추가함(구현하면서 화면에 맞게 보강한 사례).
+    recommended_by = serializers.SerializerMethodField()
+
     class Meta:
         model = Product
-        fields = ["id", "name", "price", "thumbnail", "status"]
+        fields = ["id", "name", "price", "thumbnail", "status", "recommended_by"]
+
+    def get_recommended_by(self, product):
+        recommendations = CreatorRecommendation.objects.filter(product=product).select_related("creator")
+        return [
+            {"creator_id": rec.creator_id, "handle": rec.creator.handle} for rec in recommendations
+        ]
 
 
 class ProductVendorSerializer(serializers.Serializer):

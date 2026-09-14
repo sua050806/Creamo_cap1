@@ -35,15 +35,15 @@ export default function AdminPage() {
   if (!user || user.role !== "admin") {
     return (
       <main className="flex-1 px-6 py-8">
-        <p className="text-sm text-foreground/60">관리자 계정으로 로그인해야 볼 수 있는 페이지입니다.</p>
+        <p className="text-sm text-foreground/60">
+          관리자 계정으로 로그인해야 볼 수 있는 페이지입니다.
+        </p>
       </main>
     );
   }
 
   return (
     <main className="flex-1 px-6 py-8">
-      <h1 className="text-2xl font-semibold">관리자 콘솔</h1>
-
       <div className="mt-6 flex gap-2 border-b border-black/10">
         {TABS.map((t) => (
           <button
