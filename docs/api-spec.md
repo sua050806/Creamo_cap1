@@ -255,9 +255,14 @@ ADR-014 참고. 판매수·커미션 통계만으로 대시보드 핵심 기능�
 **인증**: 역할: admin
 ```json
 // response 200
-[ { "type": "creator", "id": 3, "name": "홍길동", "handle": "gil-dong", "applied_at": "..." },
-  { "type": "vendor", "id": 5, "name": "OO전자", "business_no": "123-45-67890" } ]
+[ { "type": "creator", "id": 3, "name": "홍길동 (@gil-dong)", "detail": "테크", "status": "승인대기" },
+  { "type": "vendor", "id": 5, "name": "OO전자", "detail": "123-45-67890", "status": "승인" } ]
 ```
+구현하면서 `name`/`detail`/`status`로 필드를 정리함(원래 문서의 `handle`/`business_no`/`applied_at`을
+타입에 따라 다른 필드로 나누는 대신, 프론트 표에 그대로 넣을 수 있는 공통 필드 3개로 통일). `status`는
+사람이 읽는 한글 라벨(`승인대기`/`승인`/`반려`)로 내려준다 — 프론트의 `StatusTag` 컴포넌트가 바로 쓸 수
+있게 하기 위함. 신청 대기중인 것만이 아니라 전체 이력을 내려주고, 이미 승인/반려된 항목은 프론트에서
+처리 버튼을 숨긴다.
 
 ### POST /admin/applications
 **인증**: 역할: admin
@@ -265,7 +270,15 @@ ADR-014 참고. 판매수·커미션 통계만으로 대시보드 핵심 기능�
 // request
 { "type": "creator", "id": 3, "decision": "approve" }  // "approve" | "reject"
 // response 200
-{ "id": 3, "status": "approved" }
+{ "id": 3, "status": "approved" }  // 영문 슬러그(pending/approved/rejected)
+```
+
+### GET /admin/vendors
+**인증**: 역할: admin — `POST /admin/products` 등록 화면의 벤더 선택 드롭다운용으로 구현 중 추가(문서에는
+없었음). 벤더는 로그인 계정이 없어 공개 API가 없기 때문에 관리자 전용으로 제공.
+```json
+// response 200
+[ { "id": 5, "name": "OO전자" } ]
 ```
 
 ### GET /admin/products
@@ -276,27 +289,41 @@ ADR-014 참고. 판매수·커미션 통계만으로 대시보드 핵심 기능�
 ```json
 // request
 { "vendor_id": 5, "category_id": 2, "name": "무선 이어폰", "price": 39000, "commission_rate": 5.0,
-  "options": {"색상": ["블랙", "화이트"]}, "stock": {"블랙": 60, "화이트": 60} }
+  "description": "...", "options": {"색상": ["블랙", "화이트"]}, "stock": {"블랙": 60, "화이트": 60} }
 // response 201
 { "id": 10, "name": "무선 이어폰" }
 ```
+
+### GET /admin/order-items
+**인증**: 역할: admin — 배송 상태 변경 화면에 띄울 목록. 문서에는 없었지만(원래 PATCH만 명시) 화면
+구성상 필요해서 구현 중 추가.
+```json
+// response 200
+[ { "id": 501, "order_id": 100, "buyer_email": "buyer@example.com", "product_name": "무선 이어폰",
+    "creator_handle": "gil-dong", "quantity": 2, "unit_price": 39000, "commission_amount": 1950,
+    "status": "preparing" } ]
+```
+`status`는 영문 슬러그(`paid`/`preparing`/`shipping`/`delivered`)로 내려준다 — 프론트에서 한글
+라벨로 매핑.
 
 ### PATCH /admin/order-items/{id}/status
 **인증**: 역할: admin
 ```json
 // request
-{ "status": "배송중" }
+{ "status": "shipping" }  // paid | preparing | shipping | delivered
 // response 200
-{ "id": 501, "status": "배송중" }
+{ "id": 501, "status": "shipping" }
 ```
 
 ### GET /admin/settlements
 **인증**: 역할: admin
 ```json
 // response 200
-[ { "id": 20, "target_type": "creator", "target_id": 3, "amount": 58000,
-    "period_start": "2026-08-01", "period_end": "2026-08-31", "status": "대기" } ]
+[ { "id": 20, "target_type": "creator", "target_id": 3, "target_name": "gil-dong", "amount": 58000,
+    "period_start": "2026-08-01", "period_end": "2026-08-31", "status": "pending", "approved_at": null } ]
 ```
+`target_name`은 `target_type`/`target_id` 조합으로 VendorProfile 또는 CreatorProfile을 조회해서
+채워주는 표시용 필드(구현 중 추가). `status`도 영문 슬러그(`pending`/`approved`/`completed`).
 
 ### POST /admin/settlements
 **인증**: 역할: admin
@@ -304,10 +331,11 @@ ADR-014 참고. 판매수·커미션 통계만으로 대시보드 핵심 기능�
 // request
 { "id": 20, "decision": "approve" }
 // response 200
-{ "id": 20, "status": "승인" }
+{ "id": 20, "status": "approved" }
 ```
 정산 대상·금액 자체는 Celery 배치 작업이 주기적으로 계산해서 미리 만들어두고, 이 API는 그 결과를
-승인만 하는 흐름으로 가정.
+승인만 하는 흐름으로 가정. 실제 Celery 배치는 아직 구현 전이라(4주차 스코프), 그 전까지는
+`settlements/migrations/0002_seed_demo_settlements.py`로 만든 데모 데이터로 화면을 확인한다.
 
 ---
 

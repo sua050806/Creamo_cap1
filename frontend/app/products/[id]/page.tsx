@@ -29,41 +29,52 @@ export default async function ProductDetailPage({
 
   return (
     <main className="flex-1 px-6 py-8">
-      <div className="mx-auto grid max-w-3xl gap-8 sm:grid-cols-2">
-        {product.thumbnail ? (
-          // eslint-disable-next-line @next/next/no-img-element -- 백엔드가 주는 이미지
-          <img
-            src={product.thumbnail}
-            alt={product.name}
-            className="h-72 w-full rounded-2xl object-cover"
-          />
-        ) : (
-          <div className={`h-72 rounded-2xl bg-gradient-to-br ${THUMBNAIL_GRADIENT}`} />
-        )}
+      <div className="mx-auto max-w-3xl">
+        <div className="grid gap-8 sm:grid-cols-2">
+          {product.thumbnail ? (
+            // eslint-disable-next-line @next/next/no-img-element -- 백엔드가 주는 이미지
+            <img
+              src={product.thumbnail}
+              alt={product.name}
+              className="h-72 w-full rounded-2xl object-cover"
+            />
+          ) : (
+            <div className={`h-72 rounded-2xl bg-gradient-to-br ${THUMBNAIL_GRADIENT}`} />
+          )}
 
-        <div>
-          <div className="mb-2 flex flex-wrap gap-1.5">
-            <span className="rounded-full bg-black/5 px-2.5 py-1 text-xs text-foreground/60">
-              공급 벤더 {product.vendor.name}
-            </span>
-            {product.recommended_by.map((rec) => (
-              <span
-                key={rec.creator_id}
-                className="rounded-full bg-black/5 px-2.5 py-1 text-xs text-foreground/60"
-              >
-                @{rec.handle} 추천
+          <div>
+            <div className="mb-2 flex flex-wrap gap-1.5">
+              <span className="rounded-full bg-black/5 px-2.5 py-1 text-xs text-foreground/60">
+                공급 벤더 {product.vendor.name}
               </span>
-            ))}
+              {product.recommended_by.map((rec) => (
+                <span
+                  key={rec.creator_id}
+                  className="rounded-full bg-black/5 px-2.5 py-1 text-xs text-foreground/60"
+                >
+                  @{rec.handle} 추천
+                </span>
+              ))}
+            </div>
+
+            <h1 className="text-2xl font-semibold">{product.name}</h1>
+            <p className="mt-1 text-xl font-semibold">{product.price.toLocaleString()}원</p>
+            <p className="mt-3 line-clamp-2 text-sm text-foreground/60">{product.description}</p>
+
+            <div className="my-6 border-t border-black/5" />
+
+            <ProductActions product={product} />
           </div>
-
-          <h1 className="text-2xl font-semibold">{product.name}</h1>
-          <p className="mt-1 text-xl font-semibold">{product.price.toLocaleString()}원</p>
-          <p className="mt-3 text-sm text-foreground/60">{product.description}</p>
-
-          <div className="my-6 border-t border-black/5" />
-
-          <ProductActions product={product} />
         </div>
+
+        {product.description && (
+          <div className="mt-10 border-t border-black/5 pt-8">
+            <h2 className="mb-3 text-base font-semibold">상세 설명</h2>
+            <p className="whitespace-pre-line text-sm leading-relaxed text-foreground/70">
+              {product.description}
+            </p>
+          </div>
+        )}
       </div>
     </main>
   );

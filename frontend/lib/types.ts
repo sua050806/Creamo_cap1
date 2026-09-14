@@ -52,3 +52,59 @@ export interface PaginatedResponse<T> {
   previous: string | null;
   results: T[];
 }
+
+// 관리자 콘솔 전용 타입. docs/api-spec.md '관리자' 절 참고.
+
+export interface AdminApplication {
+  type: "creator" | "vendor";
+  id: number;
+  name: string;
+  detail: string;
+  status: string;
+}
+
+export interface AdminVendor {
+  id: number;
+  name: string;
+}
+
+export interface AdminProduct {
+  id: number;
+  vendor_id: number;
+  vendor_name: string;
+  category_id: number;
+  category_name: string;
+  name: string;
+  description: string;
+  price: number;
+  commission_rate: string;
+  thumbnail: string | null;
+  options: Record<string, string[]>;
+  stock: Record<string, number>;
+  status: string;
+  created_at: string;
+}
+
+export interface AdminOrderItem {
+  id: number;
+  order_id: number;
+  buyer_email: string;
+  product_name: string;
+  creator_handle: string | null;
+  quantity: number;
+  unit_price: number;
+  commission_amount: number;
+  status: "paid" | "preparing" | "shipping" | "delivered";
+}
+
+export interface AdminSettlement {
+  id: number;
+  target_type: "vendor" | "creator";
+  target_id: number;
+  target_name: string | null;
+  amount: number;
+  period_start: string;
+  period_end: string;
+  status: "pending" | "approved" | "completed";
+  approved_at: string | null;
+}

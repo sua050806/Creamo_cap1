@@ -209,3 +209,41 @@ PostgreSQL 컨테이너 로그에 연결 시도 자체가 기록되지 않는 �
 `runserver`가 자동 재시작하게 함(패키지 추가 시에만 이미지 재빌드 필요). 이제부터 백엔드 명령어는
 `docker compose exec backend python manage.py ...` 형태로 실행한다 — 기존 `backend/venv`로 직접
 실행하던 방식은 더 이상 쓰지 않음.
+
+## ADR-025. Django 자체 관리자 사이트를 `/django-admin/`으로 이동
+**상태**: 확정 (2026-09-14)
+
+`config/urls.py`가 원래 `path('admin/', admin.site.urls)`로 Django가 기본 제공하는 관리자 사이트를
+`/admin/`에 물려두고 있었는데, `api-spec.md`에는 우리가 만드는 관리자 콘솔 API가 전부 `/admin/...`
+경로(`GET/POST /admin/applications` 등)로 설계돼 있어서 그대로 두면 경로가 충돌한다(`/admin/`으로
+시작하는 요청은 전부 Django 관리자 사이트의 URL resolver가 먼저 가로채서, 우리 API가 실제로는 전혀
+호출되지 않고 404만 돌려주게 됨).
+
+스펙 문서를 다시 쓰는 대신 Django 기본 관리자 사이트 쪽을 옮기기로 함 — 여기는 원래도 사용자가 직접
+들어가는 화면이 아니라, ADR-021·ADR-022처럼 관리자가 `CreatorRecommendation` 등을 수동으로 조정할
+때만 가끔 쓰는 보조 화면이라 URL이 바뀌어도 체감상 영향이 없음. `path('django-admin/', admin.site.urls)`로
+변경.
+
+## ADR-026. 관리자 콘솔 4개 기능(신청 심사·상품 등록·배송 상태 변경·정산 승인)을 `adminconsole` 앱에 모음
+**상태**: 확정 (2026-09-14)
+
+3주차 관리자 콘솔 API를 구현하면서, 기능별로 이미 존재하는 각 앱(`accounts`, `vendors`, `catalog`,
+`orders`, `settlements`)에 admin 전용 뷰를 흩어 넣을지, 처음부터 비어 있던 `adminconsole` 앱 하나에
+모을지를 정해야 했음. `adminconsole`에 모으는 쪽을 택함 — 관리자 콘솔은 "누가 이 데이터를 갖고
+있냐"가 아니라 "관리자가 무엇을 승인/등록/변경하냐"라는 별개의 관심사이고, 실제로 한 화면(`GET
+/admin/applications`)이 `CreatorProfile`과 `VendorProfile`처럼 서로 다른 앱의 모델을 한 번에 다루는
+경우도 있어서 특정 도메인 앱 하나에 억지로 끼워 넣기 애매했기 때문. `IsAdmin` 권한 클래스
+(`adminconsole/permissions.py`, `User.role == "admin"` 체크)도 여기 두고 4개 뷰가 전부 공유한다.
+
+배송 상태 변경(`PATCH /admin/order-items/{id}/status`)과 정산 승인(`GET/POST /admin/settlements`)은
+그 대상이 되는 주문·정산 데이터 자체가 아직 하나도 없어서(주문 생성 API, 정산 배치 계산 로직 모두
+4주차 스코프) 화면을 확인할 방법이 없었음. 이 두 기능만 나중으로 미루는 대신, 데모/테스트용 주문 1건과
+정산 대상 2건을 각각 `orders/migrations/0002_seed_demo_order.py`,
+`settlements/migrations/0002_seed_demo_settlements.py`로 시드해서 지금 당장 두 화면 모두 실제
+승인/상태변경 동작까지 눈으로 확인할 수 있게 함(이 데이터는 어디까지나 데모용이며, 실제 주문·정산
+생성 로직이 붙으면 자연스럽게 실제 데이터로 대체됨).
+
+`GET /admin/order-items`, `GET /admin/vendors`는 `api-spec.md`에 명시돼 있지 않지만 각각 배송 상태
+변경 화면의 목록과 상품 등록 화면의 벤더 선택 드롭다운을 채우는 데 필요해서 화면 구현 과정에서
+추가함 — `POST /creator/profile`을 문서화 전에 먼저 구현했던 것과 같은 패턴(설계 문서가 구현을
+따라가며 채워지는 부분).

@@ -1,67 +1,68 @@
 "use client";
 
 import { useState } from "react";
-import StatusTag from "@/components/StatusTag";
-import { mockApplications, type MockApplication } from "@/lib/mock-data";
+import { useAuth } from "@/lib/auth-context";
+import ApplicationsTab from "./applications-tab";
+import ProductsTab from "./products-tab";
+import ShippingTab from "./shipping-tab";
+import SettlementsTab from "./settlements-tab";
 
-// 관리자 콘솔: 벤더·크리에이터 신청 심사(통합 목록, 구분 표시), 상품 관리, 배송 상태 변경, 정산 승인.
-// 지금은 신청 심사 부분만 목업 데이터로 구현 — 3주차에 GET/POST /admin/applications 연동 예정.
+const TABS = [
+  { key: "applications", label: "신청 심사" },
+  { key: "products", label: "상품 등록" },
+  { key: "shipping", label: "배송 상태 변경" },
+  { key: "settlements", label: "정산 승인" },
+] as const;
+
+type TabKey = (typeof TABS)[number]["key"];
+
+// 관리자 콘솔: 신청 심사(벤더·크리에이터) / 상품 등록 / 배송 상태 변경 / 정산 승인.
+// 전부 role=admin 전용 실 API(GET/POST /admin/...)로 연동됨(더 이상 목업 데이터 아님).
 export default function AdminPage() {
-  const [applications, setApplications] = useState<MockApplication[]>(mockApplications);
+  const { user, isLoading } = useAuth();
+  const [tab, setTab] = useState<TabKey>("applications");
 
-  const decide = (id: number, status: MockApplication["status"]) => {
-    setApplications((prev) => prev.map((app) => (app.id === id ? { ...app, status } : app)));
-  };
+  if (isLoading) {
+    return (
+      <main className="flex-1 px-6 py-8">
+        <p className="text-sm text-foreground/40">불러오는 중...</p>
+      </main>
+    );
+  }
+
+  if (!user || user.role !== "admin") {
+    return (
+      <main className="flex-1 px-6 py-8">
+        <p className="text-sm text-foreground/60">관리자 계정으로 로그인해야 볼 수 있는 페이지입니다.</p>
+      </main>
+    );
+  }
 
   return (
     <main className="flex-1 px-6 py-8">
       <h1 className="text-2xl font-semibold">관리자 콘솔</h1>
 
-      <h2 className="mt-8 mb-3 text-sm font-medium text-foreground/50">
-        신청 심사 (벤더·크리에이터 통합)
-      </h2>
-      <div className="max-w-2xl overflow-hidden rounded-2xl border border-black/5 bg-white shadow-sm">
-        <table className="w-full border-collapse text-sm">
-          <thead>
-            <tr className="border-b border-black/10 text-left">
-              <th className="px-4 py-3 font-medium text-foreground/50">구분</th>
-              <th className="px-4 py-3 font-medium text-foreground/50">이름</th>
-              <th className="px-4 py-3 font-medium text-foreground/50">상세</th>
-              <th className="px-4 py-3 font-medium text-foreground/50">상태</th>
-              <th className="px-4 py-3 font-medium text-foreground/50">처리</th>
-            </tr>
-          </thead>
-          <tbody>
-            {applications.map((app) => (
-              <tr key={app.id} className="border-b border-black/5 last:border-0">
-                <td className="px-4 py-3">{app.type === "vendor" ? "벤더" : "크리에이터"}</td>
-                <td className="px-4 py-3 font-medium">{app.name}</td>
-                <td className="px-4 py-3 text-foreground/60">{app.detail}</td>
-                <td className="px-4 py-3">
-                  <StatusTag status={app.status} />
-                </td>
-                <td className="px-4 py-3">
-                  {app.status === "승인대기" && (
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => decide(app.id, "승인")}
-                        className="rounded-full bg-brand px-3 py-1 text-xs font-medium text-brand-foreground transition-opacity hover:opacity-90"
-                      >
-                        승인
-                      </button>
-                      <button
-                        onClick={() => decide(app.id, "반려")}
-                        className="rounded-full bg-black/5 px-3 py-1 text-xs font-medium text-foreground/60 transition-colors hover:bg-black/10"
-                      >
-                        반려
-                      </button>
-                    </div>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="mt-6 flex gap-2 border-b border-black/10">
+        {TABS.map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
+              tab === t.key
+                ? "border-brand text-foreground"
+                : "border-transparent text-foreground/50 hover:text-foreground"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="mt-6">
+        {tab === "applications" && <ApplicationsTab />}
+        {tab === "products" && <ProductsTab />}
+        {tab === "shipping" && <ShippingTab />}
+        {tab === "settlements" && <SettlementsTab />}
       </div>
     </main>
   );

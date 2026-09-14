@@ -20,9 +20,12 @@ from django.contrib import admin
 from django.urls import include, path
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
+    # 프론트엔드가 우리 관리자 콘솔 API를 /admin/...으로 쓰기로 스펙에 정해둬서(api-spec.md),
+    # Django 자체 관리자 사이트는 경로 충돌을 피하기 위해 /django-admin/으로 옮긴다.
+    path('django-admin/', admin.site.urls),
     path('', include('accounts.urls')),
     path('', include('catalog.urls')),
+    path('', include('adminconsole.urls')),
 ]
 
 if settings.DEBUG:
