@@ -3,11 +3,13 @@
 import { useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import ApplicationsTab from "./applications-tab";
+import MembersTab from "./members-tab";
 import ProductsTab from "./products-tab";
 import ShippingTab from "./shipping-tab";
 import SettlementsTab from "./settlements-tab";
 
 const TABS = [
+  { key: "members", label: "회원 관리" },
   { key: "applications", label: "신청 심사" },
   { key: "products", label: "상품 등록" },
   { key: "shipping", label: "배송 상태 변경" },
@@ -20,7 +22,7 @@ type TabKey = (typeof TABS)[number]["key"];
 // 전부 role=admin 전용 실 API(GET/POST /admin/...)로 연동됨(더 이상 목업 데이터 아님).
 export default function AdminPage() {
   const { user, isLoading } = useAuth();
-  const [tab, setTab] = useState<TabKey>("applications");
+  const [tab, setTab] = useState<TabKey>("members");
 
   if (isLoading) {
     return (
@@ -59,6 +61,7 @@ export default function AdminPage() {
       </div>
 
       <div className="mt-6">
+        {tab === "members" && <MembersTab />}
         {tab === "applications" && <ApplicationsTab />}
         {tab === "products" && <ProductsTab />}
         {tab === "shipping" && <ShippingTab />}

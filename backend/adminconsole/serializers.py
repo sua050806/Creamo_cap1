@@ -1,9 +1,28 @@
 from rest_framework import serializers
 
+from accounts.models import User
 from catalog.models import Category, Product
 from orders.models import OrderItem
 from settlements.models import Settlement
 from vendors.models import VendorProfile
+
+
+class AdminUserSerializer(serializers.ModelSerializer):
+    # role=creator인 회원은 크리에이터 프로필 상태도 같이 보여준다(핸들·승인 상태). 일반 회원/관리자는 null.
+    creator_handle = serializers.CharField(source="creator_profile.handle", read_only=True, default=None)
+    creator_status = serializers.CharField(source="creator_profile.status", read_only=True, default=None)
+
+    class Meta:
+        model = User
+        fields = ["id", "email", "name", "role", "date_joined", "creator_handle", "creator_status"]
+        read_only_fields = fields
+
+
+class AdminVendorSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = VendorProfile
+        fields = ["id", "name", "business_no", "contact", "settlement_account", "status"]
+        read_only_fields = fields
 
 
 class AdminProductSerializer(serializers.ModelSerializer):

@@ -5,24 +5,63 @@ from rest_framework.generics import ListCreateAPIView
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from accounts.models import CreatorProfile
+from accounts.models import CreatorProfile, User
 from catalog.models import Product
 from orders.models import OrderItem
 from settlements.models import Settlement
 from vendors.models import VendorProfile
 
 from .permissions import IsAdmin
-from .serializers import AdminOrderItemSerializer, AdminProductSerializer, AdminSettlementSerializer
+from .serializers import (
+    AdminOrderItemSerializer,
+    AdminProductSerializer,
+    AdminSettlementSerializer,
+    AdminUserSerializer,
+    AdminVendorSerializer,
+)
 
 
 class AdminVendorsView(APIView):
-    """상품 등록 화면의 벤더 선택 드롭다운용. 벤더는 로그인 계정이 없어 공개 API가 없으므로 관리자 전용으로 제공."""
+    """상품 등록 화면의 벤더 선택 드롭다운 + 회원 관리 화면의 벤더 목록용. 벤더는 로그인 계정이 없어
+    공개 API가 없으므로 관리자 전용으로 제공."""
 
     permission_classes = [IsAdmin]
 
     def get(self, request):
-        vendors = VendorProfile.objects.order_by("name").values("id", "name")
-        return Response(list(vendors))
+        vendors = VendorProfile.objects.order_by("name")
+        return Response(AdminVendorSerializer(vendors, many=True).data)
+
+
+class AdminUsersView(APIView):
+    """회원 관리 화면: 가입한 회원(일반 회원·크리에이터·관리자) 전체 목록. 벤더는 로그인 계정이 없어
+    별도로 GET /admin/vendors에서 조회한다."""
+
+    permission_classes = [IsAdmin]
+
+    def get(self, request):
+        users = User.objects.select_related("creator_profile").order_by("-date_joined")
+        return Response(AdminUserSerializer(users, many=True).data)
+
+
+class AdminUserRoleView(APIView):
+    """회원의 역할(buyer/creator/admin)을 관리자가 직접 변경. 역할만 바꾸는 것이라, creator로 바꿔도
+    CreatorProfile은 자동으로 생기지 않는다(본인이 /creator/apply로 별도 작성해야 함 — 스펙 2.4와 동일한 흐름)."""
+
+    permission_classes = [IsAdmin]
+
+    def patch(self, request, pk):
+        try:
+            user = User.objects.get(id=pk)
+        except User.DoesNotExist:
+            return Response({"error": "회원을 찾을 수 없습니다."}, status=http_status.HTTP_404_NOT_FOUND)
+
+        new_role = request.data.get("role")
+        if new_role not in User.Role.values:
+            raise ValidationError({"role": f"role은 {User.Role.values} 중 하나여야 합니다."})
+
+        user.role = new_role
+        user.save()
+        return Response({"id": user.id, "role": user.role})
 
 
 class AdminApplicationsView(APIView):

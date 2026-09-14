@@ -66,6 +66,20 @@ export interface AdminApplication {
 export interface AdminVendor {
   id: number;
   name: string;
+  business_no: string;
+  contact: string;
+  settlement_account: string;
+  status: string;
+}
+
+export interface AdminUser {
+  id: number;
+  email: string;
+  name: string;
+  role: "buyer" | "creator" | "admin";
+  date_joined: string;
+  creator_handle: string | null;
+  creator_status: string | null;
 }
 
 export interface AdminProduct {

@@ -251,6 +251,39 @@ ADR-014 참고. 판매수·커미션 통계만으로 대시보드 핵심 기능�
 
 ## 관리자
 
+### GET /admin/users
+**인증**: 역할: admin — 회원 관리 화면. 벤더는 로그인 계정이 없어 여기 안 나오고 `GET /admin/vendors`로
+따로 조회. 원래 문서에는 없었지만(스펙 7번 페이지 목록에도 회원 관리 화면은 없었음) "가입한 회원·크리
+에이터를 목록으로 확인하고 역할을 바꾸고 싶다"는 요청으로 3주차에 추가.
+```json
+// response 200
+[ { "id": 3, "email": "gil-dong@example.com", "name": "홍길동", "role": "creator",
+    "date_joined": "2026-09-04T12:00:00Z", "creator_handle": "gil-dong", "creator_status": "approved" } ]
+```
+`creator_handle`/`creator_status`는 role이 creator이고 실제로 크리에이터 프로필을 작성한 경우에만
+값이 있고, 그 외엔 `null`(역할만 creator로 바뀌었고 아직 `/creator/apply`를 안 거친 경우 포함).
+
+### PATCH /admin/users/{id}/role
+**인증**: 역할: admin
+```json
+// request
+{ "role": "creator" }  // buyer | creator | admin
+// response 200
+{ "id": 3, "role": "creator" }
+```
+역할만 바꾸는 것이라, creator로 바꿔도 `CreatorProfile`이 자동으로 생기지는 않는다 — 본인이
+`/creator/apply`로 별도 작성해야 함(스펙 2.4와 동일한 흐름, 관리자가 대신 만들어주지 않음).
+
+### GET /admin/vendors
+**인증**: 역할: admin — 회원 관리 화면의 벤더 목록 + `POST /admin/products` 등록 화면의 벤더 선택
+드롭다운 양쪽에서 씀. 벤더는 로그인 계정이 없어 공개 API가 없기 때문에 관리자 전용으로 제공(문서에는
+없었음).
+```json
+// response 200
+[ { "id": 5, "name": "OO전자", "business_no": "123-45-67890", "contact": "vendor@example.com",
+    "settlement_account": "국민 123-456-789", "status": "approved" } ]
+```
+
 ### GET /admin/applications
 **인증**: 역할: admin
 ```json
@@ -271,14 +304,6 @@ ADR-014 참고. 판매수·커미션 통계만으로 대시보드 핵심 기능�
 { "type": "creator", "id": 3, "decision": "approve" }  // "approve" | "reject"
 // response 200
 { "id": 3, "status": "approved" }  // 영문 슬러그(pending/approved/rejected)
-```
-
-### GET /admin/vendors
-**인증**: 역할: admin — `POST /admin/products` 등록 화면의 벤더 선택 드롭다운용으로 구현 중 추가(문서에는
-없었음). 벤더는 로그인 계정이 없어 공개 API가 없기 때문에 관리자 전용으로 제공.
-```json
-// response 200
-[ { "id": 5, "name": "OO전자" } ]
 ```
 
 ### GET /admin/products
