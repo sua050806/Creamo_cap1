@@ -98,7 +98,15 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
       });
 
       if (response.code) {
-        setActionError(response.message ?? "결제가 취소되었습니다.");
+        // response.message는 포트원 SDK가 그대로 내려주는 원문(예: "[PAY_PROCESS_CANCELED]
+        // 사용자가 결제를 취소하였습니다")이라 내부 에러 코드가 그대로 노출됨 — 사용자에게는
+        // 코드 없이 다듬은 문구만 보여주되, 실제 사유는 콘솔에 남겨서 디버깅 때 확인할 수 있게 한다.
+        console.error("PortOne 결제 실패:", response.code, response.message);
+        setActionError(
+          response.code === "PAY_PROCESS_CANCELED"
+            ? "결제를 취소했습니다."
+            : "결제에 실패했습니다. 다시 시도해주세요."
+        );
         return;
       }
 

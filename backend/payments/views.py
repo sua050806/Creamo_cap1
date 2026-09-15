@@ -1,3 +1,5 @@
+import logging
+
 from django.db import transaction
 from django.utils import timezone
 from rest_framework import status as http_status
@@ -10,6 +12,8 @@ from orders.models import Order, OrderItem
 
 from .models import Payment
 from .portone import PortOneError, get_payment
+
+logger = logging.getLogger(__name__)
 
 
 class PaymentCompleteView(APIView):
@@ -37,7 +41,12 @@ class PaymentCompleteView(APIView):
         try:
             remote = get_payment(payment_id)
         except PortOneError as exc:
-            return Response({"error": str(exc)}, status=http_status.HTTP_502_BAD_GATEWAY)
+            # 포트원이 돌려준 원문은 서버 로그에만 남기고, 사용자에게는 다듬은 메시지만 보여준다.
+            logger.warning("주문 %s 결제 조회 실패 (payment_id=%s): %s", order.id, payment_id, exc)
+            return Response(
+                {"error": "결제 확인에 실패했습니다. 잠시 후 다시 시도해주세요."},
+                status=http_status.HTTP_502_BAD_GATEWAY,
+            )
 
         remote_status = remote.get("status")
         remote_amount = (remote.get("amount") or {}).get("total")
@@ -45,6 +54,10 @@ class PaymentCompleteView(APIView):
         method_type = method_info.get("type") if isinstance(method_info, dict) else "unknown"
 
         if remote_status != "PAID" or remote_amount != order.total_amount:
+            logger.warning(
+                "주문 %s 결제 검증 실패 (payment_id=%s): remote_status=%s remote_amount=%s expected_amount=%s",
+                order.id, payment_id, remote_status, remote_amount, order.total_amount,
+            )
             Payment.objects.create(
                 order=order, pg_transaction_id=payment_id, method=method_type or "unknown",
                 status=Payment.Status.FAILED,

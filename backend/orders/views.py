@@ -1,3 +1,5 @@
+import logging
+
 from django.db import transaction
 from rest_framework import status as http_status
 from rest_framework.exceptions import ValidationError
@@ -13,6 +15,8 @@ from recommendations.models import CreatorRecommendation
 
 from .models import Cart, CartItem, Order, OrderItem
 from .serializers import CartSerializer, OrderDetailSerializer, OrderListSerializer
+
+logger = logging.getLogger(__name__)
 
 
 def _get_or_create_cart(user):
@@ -249,8 +253,12 @@ class OrderCancelView(APIView):
             try:
                 cancel_payment(completed_payment.pg_transaction_id, reason="구매자 요청", amount=order.total_amount)
             except PortOneError as exc:
+                # 포트원이 돌려준 원문(내부 에러 코드·문구)은 사용자에게 그대로 보여주지 않고
+                # 서버 로그에만 남긴다 — 디버깅 시엔 이 로그로 실제 사유를 확인한다.
+                logger.warning("주문 %s 결제 취소 실패: %s", order.id, exc)
                 return Response(
-                    {"error": f"결제 취소에 실패했습니다: {exc}"}, status=http_status.HTTP_502_BAD_GATEWAY
+                    {"error": "결제 취소에 실패했습니다. 잠시 후 다시 시도해주세요."},
+                    status=http_status.HTTP_502_BAD_GATEWAY,
                 )
 
         with transaction.atomic():
