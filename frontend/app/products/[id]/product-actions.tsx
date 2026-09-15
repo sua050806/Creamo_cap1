@@ -14,8 +14,12 @@ const buttonClass =
 // 같으면 수량만 늘어남), 바로구매는 POST /orders로 장바구니를 거치지 않고 바로 주문을 만든다.
 export default function ProductActions({
   product,
+  creatorId,
 }: {
   product: { id: number; options: Record<string, string[]> };
+  /** URL의 ?creator=에서 넘어온 값(상세 페이지 참고) — 있으면 장바구니/주문 요청에 실어 보낸다.
+   * 실제 추천 관계가 없는 값이면 백엔드가 조용히 무시하므로 여기서는 검증하지 않는다. */
+  creatorId?: number;
 }) {
   const { user, isLoading } = useAuth();
   const router = useRouter();
@@ -42,6 +46,7 @@ export default function ProductActions({
           product_id: product.id,
           quantity,
           option: selectedOptions,
+          creator_id: creatorId ?? null,
         }),
       });
       setMessage("장바구니에 담았습니다.");
@@ -63,7 +68,9 @@ export default function ProductActions({
       const { order_id } = await apiFetch<ApiOrderCreateResponse>("/orders", {
         method: "POST",
         body: JSON.stringify({
-          items: [{ product_id: product.id, quantity, option: selectedOptions }],
+          items: [
+            { product_id: product.id, quantity, option: selectedOptions, creator_id: creatorId ?? null },
+          ],
         }),
       });
       router.push(`/orders/${order_id}?confirmed=1`);

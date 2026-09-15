@@ -13,11 +13,14 @@ export interface ProductSliderProps {
   products: ProductSliderItem[];
   /** true면 크리에이터 패널처럼 좁은 공간 안에서 작은 카드로 넘기는 형태 */
   compact?: boolean;
+  /** 이 슬라이드가 특정 크리에이터의 추천 상품 목록일 때 — ProductCard로 그대로 전달해서
+   * 상품 상세로 이동하는 링크에 ?creator=가 실리게 한다. */
+  creatorId?: number;
 }
 
 // 크리에이터 섹션 등에서 상품을 가로로 옆으로 넘겨보는 슬라이드. 화살표 클릭으로도 넘길 수 있다
 // (HorizontalSlider 참고 — 마우스로는 드래그가 안 되는 overflow-x 영역이라 버튼을 붙여둠).
-export default function ProductSlider({ products, compact = false }: ProductSliderProps) {
+export default function ProductSlider({ products, compact = false, creatorId }: ProductSliderProps) {
   if (products.length === 0) {
     return <p className="text-sm text-foreground/40">아직 등록된 추천 상품이 없습니다.</p>;
   }
@@ -33,6 +36,7 @@ export default function ProductSlider({ products, compact = false }: ProductSlid
             vendorName={product.vendorName}
             thumbnail={product.thumbnail ?? undefined}
             compact={compact}
+            creatorId={creatorId}
           />
         </div>
       ))}

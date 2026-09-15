@@ -136,24 +136,25 @@ ADR-030 참고.
 **인증**: 없음
 ```json
 // response 200
-[ { "id": 10, "name": "무선 이어폰", "price": 39000, "commission_rate": 5.0 } ]
+[ { "id": 10, "name": "무선 이어폰", "price": 39000, "thumbnail": "...", "commission_rate": 5.0 } ]
 ```
 `commission_rate`는 `Product`에 관리자가 미리 설정해둔 값을 그대로 보여주는 것. 판매중단된 벤더의
-상품은 여기서도 제외됨(ADR-030).
+상품·판매중이 아닌 상품(품절/비활성)은 여기서 제외됨(메인 상품 목록과 동일 기준) → ADR-030,
+ADR-037 참고. `/creators/{id}` 프로필 페이지에서 이 목록의 상품을 클릭하면
+`/products/{id}?creator={id}`로 이동해서, 장바구니/주문에 크리에이터 귀속이 실리도록 연결된다
+(ADR-037 참고). `thumbnail`은 원래 빠져 있어서 홈 화면 "추천 크리에이터" 섹션 카드가 항상
+플레이스홀더만 보이던 문제였고, 통합 테스트 중 발견해서 추가함.
 
-### POST /creator/recommendations
-**인증**: 역할: creator, status=approved (미승인이면 403)
-```json
-// request
-{ "product_id": 10 }
-// response 201
-{ "id": 7, "creator_id": 3, "product_id": 10, "commission_rate": 5.0 }
-```
-커미션율은 크리에이터가 정하지 않고, 등록 시점에 `Product.commission_rate`(관리자/벤더가 정한 기본값)가
-`CreatorRecommendation.commission_rate`로 그대로 복사되어 저장된다 → [decisions.md](decisions.md)
-ADR-012, [erd.md](erd.md) 참고. 개별 레코드로 저장해두는 이유는, 나중에 관리자가 특정 크리에이터에게만
-우대 요율을 적용하고 싶을 때 이 값만 따로 조정할 수 있게 하기 위함(상품 기본값·다른 크리에이터 값에는
-영향 없음).
+### (문서 정정) 크리에이터-상품 추천 연결은 크리에이터 셀프서비스가 아님
+
+이 절엔 원래 크리에이터가 직접 `POST /creator/recommendations`로 상품을 추천 목록에 추가하는 API가
+적혀 있었는데, 이건 실제로 구현된 적이 없다 — ADR-021/022에서 "크리에이터-상품 연결은 관리자가
+처리"로 이미 확정됐던 결정이 이 문서에 반영이 안 된 채 남아있던 stale한 내용이었다(통합 테스트로
+전체 API 현황을 다시 훑다가 발견). 실제 연결 경로는 `POST /admin/products`의 `creator_id` 필드,
+`POST/DELETE /admin/products/{id}/recommendations`(둘 다 "상품" 절 참고) — 전부 관리자 전용
+→ [decisions.md](decisions.md) ADR-034 참고. 커미션율은 연결 시점에 `Product.commission_rate`가
+`CreatorRecommendation.commission_rate`로 복사되어 저장되고, 개별 크리에이터 우대 요율 조정은 Django
+관리자 사이트(`/django-admin/`)에서 처리 → ADR-012 참고.
 
 ## 장바구니
 
@@ -189,6 +190,13 @@ ADR-012, [erd.md](erd.md) 참고. 개별 레코드로 저장해두는 이유는,
 ```
 같은 상품(+같은 옵션·크리에이터 조합)을 다시 담으면 수량만 늘리는 쪽으로 확정 → [decisions.md]
 (decisions.md) ADR-020 참고. 조합 비교는 DB(JSONB) 레벨에서 `option` 값 전체를 비교한다.
+
+`creator_id`는 상품 상세 페이지 URL의 `?creator=`에서 그대로 넘어오는, 누구나 원하는 값으로 바꿀 수
+있는 입력이다. 그 크리에이터가 **실제로 이 상품을 추천 중**(`CreatorRecommendation`이 존재)일 때만
+장바구니 항목에 붙고, 그렇지 않으면(승인 안 된 크리에이터거나, 존재하지 않는 id거나, 추천 관계가
+없는 경우) 조용히 무시되어 `creator: null`로 담긴다 — 요청 자체가 실패하지는 않는다. 원래는 크리에이터
+존재 여부만 확인해서, 상품과 무관한 크리에이터 id를 붙여도 그대로 받아주던 검증 누락이 있었음
+→ ADR-037 참고.
 
 ### PATCH /cart/items/{id}
 **인증**: 로그인 필요 — 본인 장바구니 항목만(다른 사람 것이면 404)
@@ -226,10 +234,17 @@ ADR-012, [erd.md](erd.md) 참고. 개별 레코드로 저장해두는 이유는,
 넘긴다(장바구니에서 주문한 경우, 주문 성공 후 프론트가 `DELETE /cart/items/{id}`로 해당 항목들을
 직접 비움 → ADR-035 참고).
 
-재고 부족·존재하지 않는 옵션 조합·판매중 아닌 상품·미승인 크리에이터 중 하나라도 있으면 그 즉시
-400으로 전체 요청을 거부하고 어떤 것도 반영하지 않는다(부분 주문 없음, DB 트랜잭션으로 원자적 처리).
-`commission_amount`는 `creator_id`가 있으면 해당 크리에이터의 `CreatorRecommendation.commission_rate`
-(없으면 `Product.commission_rate`)로 계산하고, 없으면 0.
+재고 부족·존재하지 않는 옵션 조합·판매중 아닌 상품 중 하나라도 있으면 그 즉시 400으로 전체 요청을
+거부하고 어떤 것도 반영하지 않는다(부분 주문 없음, DB 트랜잭션으로 원자적 처리).
+
+`creator_id`는 POST /cart와 같은 이유로 검증한다 — 승인된 크리에이터이면서 그 크리에이터가 **실제로
+이 상품을 추천 중**(`CreatorRecommendation` 존재)일 때만 주문 항목에 붙고, `commission_amount`도 그때만
+해당 크리에이터의 `CreatorRecommendation.commission_rate`로 계산된다. 조건을 만족 못 하면(미승인
+크리에이터, 존재하지 않는 id, 추천 관계 없음 등) 주문 자체는 그대로 진행되되 `creator`는 `null`,
+`commission_amount`는 0으로 처리된다 — 이 경우 요청을 거부하지 않는 것은 POST /cart와의 일관성이자,
+"이 id가 유효한 크리에이터인지" 여부를 에러로 노출하지 않기 위함이기도 함. 원래는 "승인된 크리에이터인지"만
+확인하고 추천 관계 여부는 안 가려서, 상품과 무관한 크리에이터 id로도 커미션이 붙던 검증 누락이 있었음
+→ ADR-037 참고.
 
 **`OrderItem.status`는 생성 시점에 `pending`(결제대기)으로 시작한다** — 원래는 "결제 대기" 상태가
 없어서 생성 즉시 `paid`로 시작했었는데(ADR-035에서 발견한 설계 공백), 실제 PG 연동을 붙이면서

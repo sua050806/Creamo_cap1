@@ -45,6 +45,7 @@ export interface ApiCreatorProduct {
   id: number;
   name: string;
   price: number;
+  thumbnail: string | null;
   commission_rate: string;
 }
 

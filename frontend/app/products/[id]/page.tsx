@@ -1,16 +1,24 @@
+import Link from "next/link";
 import { apiFetchPublic, ApiError } from "@/lib/api";
 import type { ApiProductDetail } from "@/lib/types";
 import ProductActions from "./product-actions";
 
 const THUMBNAIL_GRADIENT = "from-zinc-100 to-zinc-300";
 
-// 상품 상세 페이지. GET /products/{id} 연동. 결제(PortOne)는 다음 단계 예정.
+// 상품 상세 페이지. GET /products/{id} 연동. URL의 ?creator=는 크리에이터 프로필(/creators/{id})의
+// 추천 상품 카드에서 넘어오는 값 — ProductActions에 그대로 넘겨서 장바구니/주문에 실어 보낸다
+// (실제 추천 관계가 없으면 백엔드가 조용히 무시함 → ADR-037 참고).
 export default async function ProductDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ creator?: string }>;
 }) {
   const { id } = await params;
+  const { creator: creatorIdParam } = await searchParams;
+  const parsedCreatorId = creatorIdParam ? Number(creatorIdParam) : NaN;
+  const creatorId = Number.isFinite(parsedCreatorId) ? parsedCreatorId : undefined;
 
   let product: ApiProductDetail | null = null;
   try {
@@ -48,12 +56,13 @@ export default async function ProductDetailPage({
                 공급 벤더 {product.vendor.name}
               </span>
               {product.recommended_by.map((rec) => (
-                <span
+                <Link
                   key={rec.creator_id}
-                  className="rounded-full bg-black/5 px-2.5 py-1 text-xs text-foreground/60"
+                  href={`/creators/${rec.creator_id}`}
+                  className="rounded-full bg-black/5 px-2.5 py-1 text-xs text-foreground/60 transition-colors hover:bg-black/10"
                 >
                   @{rec.handle} 추천
-                </span>
+                </Link>
               ))}
             </div>
 
@@ -63,7 +72,7 @@ export default async function ProductDetailPage({
 
             <div className="my-6 border-t border-black/5" />
 
-            <ProductActions product={product} />
+            <ProductActions product={product} creatorId={creatorId} />
           </div>
         </div>
 

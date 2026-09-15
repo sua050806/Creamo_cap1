@@ -60,4 +60,7 @@ class CreatorRecommendationProductSerializer(serializers.Serializer):
     id = serializers.IntegerField(source="product.id")
     name = serializers.CharField(source="product.name")
     price = serializers.IntegerField(source="product.price")
+    # 원래 thumbnail이 빠져있어서 홈 화면 "추천 크리에이터" 섹션 상품 카드가 항상 회색 그라데이션
+    # 플레이스홀더만 보여주고 있었음(통합 테스트 중 발견) — ProductListSerializer와 동일하게 추가.
+    thumbnail = serializers.ImageField(source="product.thumbnail", default=None)
     commission_rate = serializers.DecimalField(max_digits=5, decimal_places=2)

@@ -7,6 +7,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from catalog.models import Product
 from orders.models import OrderItem
 from recommendations.models import CreatorRecommendation
 from vendors.models import VendorProfile
@@ -121,11 +122,15 @@ class CreatorProductsView(ListAPIView):
     serializer_class = CreatorRecommendationProductSerializer
 
     def get_queryset(self):
-        # 판매 중단된 벤더의 상품은 크리에이터 추천 목록에서도 숨긴다 → ADR-030 참고.
+        # 판매 중단된 벤더·판매중이 아닌 상품은 크리에이터 추천 목록에서도 숨긴다(ProductListView의
+        # 홈/카테고리 목록 필터와 동일한 기준 — 원래 벤더 상태만 확인하고 상품 자체 status(품절/비활성)는
+        # 안 가려서, 비활성 처리한 상품도 크리에이터 추천 목록엔 계속 남아있던 문제였음) → ADR-030 참고.
         return (
-            CreatorRecommendation.objects.filter(creator_id=self.kwargs["pk"])
-            .exclude(product__vendor__status=VendorProfile.Status.SUSPENDED)
-            .select_related("product")
+            CreatorRecommendation.objects.filter(
+                creator_id=self.kwargs["pk"],
+                product__status=Product.Status.SELLING,
+                product__vendor__status=VendorProfile.Status.ACTIVE,
+            ).select_related("product")
         )
 
 

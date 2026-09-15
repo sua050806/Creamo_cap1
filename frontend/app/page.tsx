@@ -1,3 +1,4 @@
+import Link from "next/link";
 import ProductSlider from "@/components/ProductSlider";
 import HorizontalSlider from "@/components/HorizontalSlider";
 import FeaturedProductCard from "@/components/FeaturedProductCard";
@@ -107,7 +108,7 @@ export default async function Home() {
                   key={creator.id}
                   className="w-80 shrink-0 snap-start rounded-2xl border border-black/5 bg-white p-5 shadow-sm sm:w-96"
                 >
-                  <div className="mb-4 flex items-center gap-4">
+                  <Link href={`/creators/${creator.id}`} className="mb-4 flex items-center gap-4">
                     <div
                       className={`flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-gradient-to-br text-2xl font-semibold text-white ${gradient}`}
                     >
@@ -121,11 +122,11 @@ export default async function Home() {
                         </span>
                       )}
                     </div>
-                  </div>
+                  </Link>
 
                   <div className="mb-4 border-t border-black/5" />
 
-                  <ProductSlider products={creatorProducts[index]} compact />
+                  <ProductSlider products={creatorProducts[index]} compact creatorId={creator.id} />
                 </section>
               );
             })}
