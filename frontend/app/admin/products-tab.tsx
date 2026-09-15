@@ -61,6 +61,18 @@ export default function ProductsTab() {
       return;
     }
 
+    // 옵션명 자리에 옵션값을 넣는 실수(예: {"블랙": 0})를 등록 직전에 잡아서 상품 상세 페이지가
+    // 깨지는 걸 막는다 — 서버(AdminProductSerializer.validate_options)에서도 같은 걸 한 번 더 검증함.
+    const invalidOption = Object.entries(options).find(
+      ([, values]) => !Array.isArray(values) || !values.every((v) => typeof v === "string")
+    );
+    if (invalidOption) {
+      setError(
+        `옵션 "${invalidOption[0]}"의 값은 문자열 배열이어야 합니다. 예: {"색상": ["블랙", "화이트"]}`
+      );
+      return;
+    }
+
     const formData = new FormData();
     formData.append("vendor_id", form.vendor_id);
     formData.append("category_id", form.category_id);
@@ -240,7 +252,9 @@ export default function ProductsTab() {
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="mb-1 block text-xs text-foreground/50">옵션 (JSON)</label>
+            <label className="mb-1 block text-xs text-foreground/50">
+              옵션 (JSON) — 예: {"{"}"색상": ["블랙", "화이트"]{"}"}, 옵션 없으면 {"{}"}
+            </label>
             <textarea
               value={form.options}
               onChange={(e) => setForm({ ...form, options: e.target.value })}
@@ -249,7 +263,9 @@ export default function ProductsTab() {
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs text-foreground/50">재고 (JSON)</label>
+            <label className="mb-1 block text-xs text-foreground/50">
+              재고 (JSON) — 예: {"{"}"블랙-S": 10, "화이트-M": 5{"}"} (옵션 조합별 수량)
+            </label>
             <textarea
               value={form.stock}
               onChange={(e) => setForm({ ...form, stock: e.target.value })}

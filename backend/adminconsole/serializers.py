@@ -57,6 +57,21 @@ class AdminProductSerializer(serializers.ModelSerializer):
         read_only_fields = ["status", "created_at"]
         extra_kwargs = {"thumbnail": {"required": False}}
 
+    def validate_options(self, value):
+        # {"옵션명": ["값1", "값2"]} 형태여야 하는데, 관리자 화면이 JSON을 그냥 직접 입력받다 보니
+        # {"블랙": 0, "화이트": 1}처럼 옵션값/재고를 헷갈려서 잘못된 모양으로 저장되는 사고가 실제로
+        # 있었음(옵션명 자리에 옵션값을, 값 자리에 숫자를 넣음) — 프론트(product-actions.tsx)가
+        # 옵션 값 목록을 배열로 가정하고 .map()을 호출해서 그대로 저장하면 상품 상세 페이지가 깨짐.
+        if not isinstance(value, dict):
+            raise serializers.ValidationError("옵션은 객체(JSON) 형태여야 합니다. 예: {\"색상\": [\"블랙\", \"화이트\"]}")
+        for option_name, values in value.items():
+            if not isinstance(values, list) or not all(isinstance(v, str) for v in values):
+                raise serializers.ValidationError(
+                    f'"{option_name}"의 값은 문자열 배열이어야 합니다. 예: {{"색상": ["블랙", "화이트"]}}'
+                    " (옵션이 없는 상품이면 그냥 {} 로 둡니다)"
+                )
+        return value
+
     def get_recommended_by(self, product):
         recommendations = product.recommendations.select_related("creator")
         return [
