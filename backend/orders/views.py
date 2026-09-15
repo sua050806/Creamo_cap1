@@ -52,12 +52,22 @@ class CartView(APIView):
         except Product.DoesNotExist:
             return Response({"error": "상품을 찾을 수 없습니다."}, status=http_status.HTTP_404_NOT_FOUND)
 
+        # creator_id는 상품 상세 페이지 URL의 ?creator= 파라미터에서 그대로 넘어오는, 누구나 원하는
+        # 값으로 바꿀 수 있는 입력이다. 여기서 "승인된 크리에이터인지"만 확인하고 넘어가면, 그 상품을
+        # 실제로 추천한 적 없는 크리에이터 id를 아무 상품에나 갖다 붙여서 커미션을 가로챌 수 있음
+        # (통합 테스트 중 발견) — 반드시 CreatorRecommendation(그 크리에이터가 그 상품을 실제로
+        # 추천 중인지)까지 확인하고, 아니면 조용히 무시한다(주문 자체는 그대로 진행, 커미션만 안 붙음).
+        # 존재 여부를 굳이 에러로 알려주지 않는 것도 "이 id가 유효한 크리에이터인지" 정보를 밖으로
+        # 흘리지 않기 위함.
         creator = None
         if creator_id:
-            try:
-                creator = CreatorProfile.objects.get(id=creator_id)
-            except CreatorProfile.DoesNotExist:
-                return Response({"error": "크리에이터를 찾을 수 없습니다."}, status=http_status.HTTP_404_NOT_FOUND)
+            creator_candidate = CreatorProfile.objects.filter(
+                id=creator_id, status=CreatorProfile.Status.APPROVED
+            ).first()
+            if creator_candidate and CreatorRecommendation.objects.filter(
+                creator=creator_candidate, product=product
+            ).exists():
+                creator = creator_candidate
 
         # 상품+옵션+추천 크리에이터 조합이 모두 같으면 새 줄 대신 수량만 늘린다 → ADR-020 참고.
         existing = CartItem.objects.filter(cart=cart, product=product, creator=creator, option=option).first()
@@ -133,15 +143,24 @@ def _resolve_order_item(raw_item):
     if available < quantity:
         raise ValidationError({"items": f"'{product.name}' 재고가 부족합니다. (남은 수량: {available})"})
 
+    # creator_id 검증도 CartView.post와 같은 이유로 "승인된 크리에이터인지"뿐 아니라 "그 크리에이터가
+    # 이 상품을 실제로 추천 중인지"까지 확인한다 — 추천 관계가 없으면 유효한 크리에이터 id라도 주문에
+    # 아예 안 붙인다(주문 자체를 막지는 않음, 커미션만 안 붙음). 예전엔 추천 관계가 없어도 상품 기본
+    # 커미션율로 계산해서 그대로 커미션을 붙였는데, 그러면 상품과 무관한 크리에이터 id를 URL에 넣는
+    # 것만으로 커미션을 가로챌 수 있는 문제였음(통합 테스트 중 발견).
     creator = None
     commission_rate = product.commission_rate
     if creator_id:
-        try:
-            creator = CreatorProfile.objects.get(id=creator_id, status=CreatorProfile.Status.APPROVED)
-        except CreatorProfile.DoesNotExist:
-            raise ValidationError({"items": "존재하지 않거나 승인되지 않은 크리에이터입니다."})
-        recommendation = CreatorRecommendation.objects.filter(creator=creator, product=product).first()
+        creator_candidate = CreatorProfile.objects.filter(
+            id=creator_id, status=CreatorProfile.Status.APPROVED
+        ).first()
+        recommendation = (
+            CreatorRecommendation.objects.filter(creator=creator_candidate, product=product).first()
+            if creator_candidate
+            else None
+        )
         if recommendation:
+            creator = creator_candidate
             commission_rate = recommendation.commission_rate
 
     # 가격·커미션은 지금 시점 값을 스냅샷으로 저장 — 나중에 상품 가격이나 커미션율이 바뀌어도

@@ -133,18 +133,26 @@ class CreatorDashboardStatsView(APIView):
     """로그인한 본인 크리에이터의 판매 통계. api-spec.md 'GET /creator/dashboard/stats' 참고.
 
     누적 커미션(commission_total)은 배송완료(delivered)로 끝난 주문만 확정으로 집계하고,
-    아직 배송 중/준비 중인 건은 정산 예정액(commission_pending)으로 따로 보여준다."""
+    아직 배송 중/준비 중인(결제는 이미 된) 건은 정산 예정액(commission_pending)으로 따로 보여준다.
+    결제 연동·취소 기능(ADR-036)을 붙이며 OrderItem.Status에 pending(결제대기)/cancelled(취소됨)가
+    새로 생겼는데, 이 뷰는 원래 paid/preparing/shipping/delivered 4단계만 있던 시절 로직이라
+    "delivered만 아니면 전부 정산 예정"으로 계산하고 있었음 — 그러면 결제도 안 된 주문이나 취소된
+    주문의 커미션까지 정산 예정액에 잡히는 실제 버그였음(통합 테스트 중 발견). 판매 건수(sales_count)도
+    같은 이유로 결제대기/취소된 건은 "판매"로 볼 수 없어 제외한다."""
 
     permission_classes = [IsApprovedCreator]
 
+    _UNSETTLED_STATUSES = (OrderItem.Status.PAID, OrderItem.Status.PREPARING, OrderItem.Status.SHIPPING)
+    _NOT_A_SALE_STATUSES = (OrderItem.Status.PENDING, OrderItem.Status.CANCELLED)
+
     def get(self, request):
         items = OrderItem.objects.filter(creator=request.user.creator_profile)
-        sales_count = items.count()
+        sales_count = items.exclude(status__in=self._NOT_A_SALE_STATUSES).count()
         commission_total = (
             items.filter(status=OrderItem.Status.DELIVERED).aggregate(total=Sum("commission_amount"))["total"] or 0
         )
         commission_pending = (
-            items.exclude(status=OrderItem.Status.DELIVERED).aggregate(total=Sum("commission_amount"))["total"] or 0
+            items.filter(status__in=self._UNSETTLED_STATUSES).aggregate(total=Sum("commission_amount"))["total"] or 0
         )
         return Response(
             {
@@ -156,13 +164,17 @@ class CreatorDashboardStatsView(APIView):
 
 
 class CreatorDashboardProductsView(APIView):
-    """로그인한 본인 크리에이터가 추천한 상품별 판매 성과. api-spec.md 'GET /creator/dashboard/products' 참고."""
+    """로그인한 본인 크리에이터가 추천한 상품별 판매 성과. api-spec.md 'GET /creator/dashboard/products' 참고.
+
+    CreatorDashboardStatsView와 같은 이유로 결제대기(pending)/취소됨(cancelled) 상태인 주문 항목은
+    "판매 성과"에서 제외한다."""
 
     permission_classes = [IsApprovedCreator]
 
     def get(self, request):
         rows = (
             OrderItem.objects.filter(creator=request.user.creator_profile)
+            .exclude(status__in=(OrderItem.Status.PENDING, OrderItem.Status.CANCELLED))
             .values("product_id", "product__name")
             .annotate(sales_count=Sum("quantity"), commission_total=Sum("commission_amount"))
             .order_by("-commission_total")

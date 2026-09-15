@@ -66,13 +66,24 @@ export default function MyPage() {
 
   // 구매 활동 요약 — 이미 불러온 주문 내역에서 바로 계산. 계정 정보 카드 하나만 덩그러니 있으면
   // 화면이 허전해 보인다는 피드백으로 추가.
+  // "누적 구매금액"은 실제로 돈이 나간 주문만 더한다 — 결제 전(결제대기)이거나 취소된 주문까지
+  // 그대로 합산하면 실제로 안 쓴 돈까지 "구매금액"으로 보이는 문제가 있어서(통합 테스트 중 발견,
+  // 취소한 주문 금액이 계속 합계에 남아있었음), 그 두 상태는 제외한다. "총 주문"은 취소 여부와
+  // 무관하게 지금까지 주문을 시도한 전체 건수를 보여주는 게 맞다고 판단해 그대로 둔다.
+  const paidOrders = orders?.filter(
+    (o) => o.status_summary !== "결제대기" && o.status_summary !== "취소됨"
+  );
   const orderStats = (
     <div className="grid grid-cols-2 gap-4">
       <StatCard compact label="총 주문" value={orders === null ? "-" : `${orders.length}건`} />
       <StatCard
         compact
         label="누적 구매금액"
-        value={orders === null ? "-" : `${orders.reduce((sum, o) => sum + o.total_amount, 0).toLocaleString()}원`}
+        value={
+          paidOrders === undefined
+            ? "-"
+            : `${paidOrders.reduce((sum, o) => sum + o.total_amount, 0).toLocaleString()}원`
+        }
       />
     </div>
   );
