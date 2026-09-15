@@ -3,8 +3,16 @@ export interface StatusTagProps {
 }
 
 const POSITIVE = new Set(["승인", "완료", "배송완료", "판매중"]);
-const NEGATIVE = new Set(["반려", "실패", "취소", "품절"]);
-const NEUTRAL_WARN = new Set(["승인대기", "심사 중", "대기", "결제완료", "상품준비", "배송중"]);
+const NEGATIVE = new Set(["반려", "실패", "취소", "취소됨", "품절"]);
+const NEUTRAL_WARN = new Set([
+  "승인대기",
+  "심사 중",
+  "대기",
+  "결제대기",
+  "결제완료",
+  "상품준비",
+  "배송중",
+]);
 
 // 색 대신 짙기로 의미를 구분: 확정(승인 등)은 진한 검정, 진행중은 중간 회색, 반려/실패는 옅은 아웃라인.
 function toneClasses(status: string) {

@@ -13,11 +13,18 @@ const STATUS_OPTIONS: { value: AdminOrderItem["status"]; label: string }[] = [
 ];
 
 const STATUS_LABEL: Record<AdminOrderItem["status"], string> = {
+  pending: "결제대기",
   paid: "결제완료",
   preparing: "상품준비",
   shipping: "배송중",
   delivered: "배송완료",
+  cancelled: "취소됨",
 };
+
+// 결제 전(pending)이거나 취소된(cancelled) 주문은 관리자가 배송 상태를 임의로 바꿀 수 없게 막는다.
+// pending은 아직 결제가 안 됐고, cancelled는 재고 복원까지 끝난 상태라 여기서 상태만 바꾸면
+// 실제 결제/재고 상태와 어긋나게 됨(취소는 반드시 /orders/{id}/cancel을 통해야 함).
+const EDITABLE_STATUSES = new Set(["paid", "preparing", "shipping", "delivered"]);
 
 // 주문 항목별 배송 상태 변경. GET /admin/order-items(목록 조회는 화면 구성상 추가), PATCH /admin/order-items/{id}/status 연동.
 export default function ShippingTab() {
@@ -68,17 +75,21 @@ export default function ShippingTab() {
                 <StatusTag status={STATUS_LABEL[item.status]} />
               </td>
               <td className="px-4 py-3">
-                <select
-                  value={item.status}
-                  onChange={(e) => changeStatus(item, e.target.value as AdminOrderItem["status"])}
-                  className="rounded-lg border border-black/10 px-2 py-1 text-xs"
-                >
-                  {STATUS_OPTIONS.map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
+                {EDITABLE_STATUSES.has(item.status) ? (
+                  <select
+                    value={item.status}
+                    onChange={(e) => changeStatus(item, e.target.value as AdminOrderItem["status"])}
+                    className="rounded-lg border border-black/10 px-2 py-1 text-xs"
+                  >
+                    {STATUS_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <span className="text-xs text-foreground/30">-</span>
+                )}
               </td>
             </tr>
           ))}

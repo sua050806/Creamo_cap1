@@ -7,6 +7,8 @@ from rest_framework.views import APIView
 
 from accounts.models import CreatorProfile
 from catalog.models import Product
+from payments.models import Payment
+from payments.portone import PortOneError, cancel_payment
 from recommendations.models import CreatorRecommendation
 
 from .models import Cart, CartItem, Order, OrderItem
@@ -147,6 +149,7 @@ def _resolve_order_item(raw_item):
         "product": product,
         "creator": creator,
         "quantity": quantity,
+        "option": option,
         "stock_key": stock_key,
         "unit_price": unit_price,
         "commission_amount": commission_amount,
@@ -155,9 +158,9 @@ def _resolve_order_item(raw_item):
 
 class OrderListCreateView(APIView):
     """본인 주문 목록 조회·생성. api-spec.md '주문' 절 참고. 장바구니와는 별개 API — 프론트가
-    장바구니 내용이든 "바로구매" 단일 상품이든 items 배열로 직접 넘긴다. 주문 생성이 곧바로 결제완료를
-    뜻하지는 않지만(결제 연동은 다음 단계), OrderItem.Status에 결제 전 상태가 따로 없어서 우선
-    기본값(paid)으로 시작한다."""
+    장바구니 내용이든 "바로구매" 단일 상품이든 items 배열로 직접 넘긴다. 재고는 주문 생성 시점에
+    바로 차감(=이 주문이 재고를 선점)하지만, 실제 결제 확인 전까지 OrderItem.status는 PENDING(결제대기)
+    으로 시작한다 → ADR-036 참고. 결제는 POST /payments/complete에서 별도로 확인한다."""
 
     permission_classes = [IsAuthenticated]
 
@@ -193,6 +196,7 @@ class OrderListCreateView(APIView):
                         product=r["product"],
                         creator=r["creator"],
                         quantity=r["quantity"],
+                        option=r["option"],
                         unit_price=r["unit_price"],
                         commission_amount=r["commission_amount"],
                     )
@@ -212,4 +216,57 @@ class OrderDetailView(APIView):
         order = Order.objects.filter(id=pk, buyer=request.user).prefetch_related("items").first()
         if order is None:
             return Response({"error": "주문을 찾을 수 없습니다."}, status=http_status.HTTP_404_NOT_FOUND)
+        return Response(OrderDetailSerializer(order).data)
+
+
+_NON_CANCELLABLE_STATUSES = {OrderItem.Status.SHIPPING, OrderItem.Status.DELIVERED}
+
+
+class OrderCancelView(APIView):
+    """주문 취소. 배송중/배송완료 이후는 취소 불가(반품은 별도 기능, 이번 스코프 밖) → ADR-036 참고.
+    결제가 이미 완료된 주문이면 포트원에 실제 결제취소(환불)를 요청하고, 아직 결제 전이면 그대로
+    취소 처리만 한다. 어느 쪽이든 차감했던 재고는 원복한다."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        order = Order.objects.filter(id=pk, buyer=request.user).prefetch_related("items").first()
+        if order is None:
+            return Response({"error": "주문을 찾을 수 없습니다."}, status=http_status.HTTP_404_NOT_FOUND)
+
+        items = list(order.items.all())
+        if any(item.status in _NON_CANCELLABLE_STATUSES for item in items):
+            return Response(
+                {"error": "배송이 시작된 주문은 취소할 수 없습니다."}, status=http_status.HTTP_400_BAD_REQUEST
+            )
+        if all(item.status == OrderItem.Status.CANCELLED for item in items):
+            return Response({"error": "이미 취소된 주문입니다."}, status=http_status.HTTP_400_BAD_REQUEST)
+
+        completed_payment = (
+            Payment.objects.filter(order=order, status=Payment.Status.COMPLETED).order_by("-id").first()
+        )
+        if completed_payment:
+            try:
+                cancel_payment(completed_payment.pg_transaction_id, reason="구매자 요청", amount=order.total_amount)
+            except PortOneError as exc:
+                return Response(
+                    {"error": f"결제 취소에 실패했습니다: {exc}"}, status=http_status.HTTP_502_BAD_GATEWAY
+                )
+
+        with transaction.atomic():
+            if completed_payment:
+                completed_payment.status = Payment.Status.CANCELLED
+                completed_payment.save(update_fields=["status"])
+
+            for item in items:
+                if item.status == OrderItem.Status.CANCELLED:
+                    continue
+                # select_for_update로 다른 요청과 재고 복원이 겹치지 않게 함.
+                product = Product.objects.select_for_update().get(id=item.product_id)
+                stock_key = product.stock_key(item.option)
+                product.stock[stock_key] = product.stock.get(stock_key, 0) + item.quantity
+                product.save(update_fields=["stock"])
+                item.status = OrderItem.Status.CANCELLED
+                item.save(update_fields=["status"])
+
         return Response(OrderDetailSerializer(order).data)

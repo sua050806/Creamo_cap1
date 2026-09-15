@@ -162,6 +162,13 @@ STATIC_URL = 'static/'
 MEDIA_URL = 'media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
+# 포트원(PortOne) V2 결제 연동. 값은 루트 .env(git에 안 올라감)에서 docker-compose를 거쳐 들어옴
+# → ADR-036 참고. STORE_ID/CHANNEL_KEY는 공개 식별자(프론트에도 노출됨)지만 API_SECRET은 서버
+# 전용 비밀 키이므로 여기서만 사용한다.
+PORTONE_STORE_ID = os.environ.get('PORTONE_STORE_ID', '')
+PORTONE_CHANNEL_KEY = os.environ.get('PORTONE_CHANNEL_KEY', '')
+PORTONE_API_SECRET = os.environ.get('PORTONE_API_SECRET', '')
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 

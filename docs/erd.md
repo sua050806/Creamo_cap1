@@ -90,9 +90,10 @@ erDiagram
         int product_id FK
         int creator_id FK "nullable"
         int quantity
+        json option "주문 시점 옵션 스냅샷, 예: {색상: 블랙} — 취소 시 재고 복원에 사용(ADR-036)"
         int unit_price "주문 시점 스냅샷"
         int commission_amount "주문 시점 스냅샷"
-        string status "결제완료/상품준비/배송중/배송완료"
+        string status "결제대기/결제완료/상품준비/배송중/배송완료/취소됨(ADR-036)"
     }
     Payment {
         int id PK
@@ -226,6 +227,12 @@ Django가 모델만 등록하면 자동으로 만들어주는 데이터 관리 �
 - `unit_price`, `commission_amount`: 주문 시점의 가격을 **스냅샷으로 저장**한다. Product의 가격이나
   CreatorRecommendation의 커미션율이 나중에 바뀌어도 이미 발생한 주문 금액은 변하면 안 되기 때문
   → [decisions.md](decisions.md) ADR-007 참고
+- `option`: 주문 시점에 선택한 옵션 조합(`CartItem.option`과 같은 형태)도 스냅샷으로 저장한다. 처음엔
+  이 필드가 없었는데, 주문 취소 시 "정확히 어떤 옵션 조합의 재고를 복원해야 하는지" 알 수 없다는 걸
+  취소 기능 구현 중에 발견해서 추가함 → [decisions.md](decisions.md) ADR-036 참고
+- `status`: 결제 연동 전엔 `paid`부터 시작했는데, 실제 결제 전 상태(`pending`)와 취소 상태
+  (`cancelled`)를 추가해서 `pending → paid → preparing → shipping → delivered`(취소는 배송 시작
+  전까지 어느 단계에서든 `cancelled`로) 흐름으로 재설계 → [decisions.md](decisions.md) ADR-036 참고
 
 ### Payment
 Order와 1:N 관계(`ForeignKey`)로 확정 — 결제 실패 후 재시도할 때마다 새 Payment 레코드를 만든다

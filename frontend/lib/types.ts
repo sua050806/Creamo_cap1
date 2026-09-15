@@ -82,6 +82,14 @@ export interface ApiOrderListItem {
   status_summary: string;
 }
 
+export type OrderItemStatusCode =
+  | "pending"
+  | "paid"
+  | "preparing"
+  | "shipping"
+  | "delivered"
+  | "cancelled";
+
 export interface ApiOrderDetailItem {
   id: number;
   product_name: string;
@@ -89,6 +97,7 @@ export interface ApiOrderDetailItem {
   quantity: number;
   unit_price: number;
   status: string;
+  status_code: OrderItemStatusCode;
 }
 
 export interface ApiOrderDetail {
@@ -96,6 +105,11 @@ export interface ApiOrderDetail {
   total_amount: number;
   created_at: string;
   items: ApiOrderDetailItem[];
+}
+
+export interface ApiPaymentCompleteResponse {
+  order_id: number;
+  status: string;
 }
 
 export interface PaginatedResponse<T> {
@@ -163,7 +177,7 @@ export interface AdminOrderItem {
   quantity: number;
   unit_price: number;
   commission_amount: number;
-  status: "paid" | "preparing" | "shipping" | "delivered";
+  status: "pending" | "paid" | "preparing" | "shipping" | "delivered" | "cancelled";
 }
 
 export interface CreatorDashboardStats {

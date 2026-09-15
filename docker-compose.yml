@@ -31,6 +31,10 @@ services:
       POSTGRES_PORT: 5432
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      # 루트 .env 파일(git에 안 올라감)에서 자동으로 읽어옴 → ADR-036 참고.
+      PORTONE_STORE_ID: ${PORTONE_STORE_ID}
+      PORTONE_CHANNEL_KEY: ${PORTONE_CHANNEL_KEY}
+      PORTONE_API_SECRET: ${PORTONE_API_SECRET}
     volumes:
       - ./backend:/app
     depends_on:

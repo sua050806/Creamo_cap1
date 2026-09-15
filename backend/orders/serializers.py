@@ -43,10 +43,17 @@ class CartSerializer(serializers.ModelSerializer):
         return sum(item.product.price * item.quantity for item in cart.items.all())
 
 
-# 결제완료(paid) < 상품준비(preparing) < 배송중(shipping) < 배송완료(delivered) 순서.
-# 주문 목록의 status_summary는 "아직 안 끝난 것 중 가장 앞 단계"를 보여준다 — 여러 항목이 섞여 있을 때
-# 그게 사실상 이 주문 전체의 병목 단계이기 때문.
-_STATUS_ORDER = [OrderItem.Status.PAID, OrderItem.Status.PREPARING, OrderItem.Status.SHIPPING, OrderItem.Status.DELIVERED]
+# 결제대기(pending) < 결제완료(paid) < 상품준비(preparing) < 배송중(shipping) < 배송완료(delivered)
+# 순서, 취소됨(cancelled)은 맨 뒤. 주문 목록의 status_summary는 "아직 안 끝난 것 중 가장 앞 단계"를
+# 보여준다 — 여러 항목이 섞여 있을 때 그게 사실상 이 주문 전체의 병목 단계이기 때문.
+_STATUS_ORDER = [
+    OrderItem.Status.PENDING,
+    OrderItem.Status.PAID,
+    OrderItem.Status.PREPARING,
+    OrderItem.Status.SHIPPING,
+    OrderItem.Status.DELIVERED,
+    OrderItem.Status.CANCELLED,
+]
 
 
 class OrderListSerializer(serializers.ModelSerializer):
@@ -67,11 +74,14 @@ class OrderListSerializer(serializers.ModelSerializer):
 class OrderDetailItemSerializer(serializers.ModelSerializer):
     product_name = serializers.CharField(source="product.name", read_only=True)
     creator_handle = serializers.CharField(source="creator.handle", read_only=True, default=None)
+    # status는 한글 라벨(화면 표시용), status_code는 영문 슬러그(프론트가 "결제하기"/"취소" 버튼을
+    # 보여줄지 판단할 때 한글 문자열을 파싱하지 않고 이걸로 비교하도록).
     status = serializers.CharField(source="get_status_display", read_only=True)
+    status_code = serializers.CharField(source="status", read_only=True)
 
     class Meta:
         model = OrderItem
-        fields = ["id", "product_name", "creator_handle", "quantity", "unit_price", "status"]
+        fields = ["id", "product_name", "creator_handle", "quantity", "unit_price", "status", "status_code"]
 
 
 class OrderDetailSerializer(serializers.ModelSerializer):

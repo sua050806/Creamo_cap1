@@ -231,9 +231,10 @@ ADR-012, [erd.md](erd.md) 참고. 개별 레코드로 저장해두는 이유는,
 `commission_amount`는 `creator_id`가 있으면 해당 크리에이터의 `CreatorRecommendation.commission_rate`
 (없으면 `Product.commission_rate`)로 계산하고, 없으면 0.
 
-**결제 연동 전이라 각 `OrderItem.status`는 생성 시점에 바로 `paid`(결제완료)로 시작한다** — 원래
-`OrderItem.Status`에 "결제 대기" 상태가 없어서(ADR-035에서 발견한 설계 공백), 다음 단계인 PG 연동을
-붙일 때 이 부분을 다시 검토할 예정.
+**`OrderItem.status`는 생성 시점에 `pending`(결제대기)으로 시작한다** — 원래는 "결제 대기" 상태가
+없어서 생성 즉시 `paid`로 시작했었는데(ADR-035에서 발견한 설계 공백), 실제 PG 연동을 붙이면서
+`pending`을 추가하고 기본값으로 바꿨다. `POST /payments/complete`가 결제를 검증해야 `paid`로
+넘어간다 → ADR-036 참고.
 
 ### GET /orders
 **인증**: 로그인 필요 — 본인 주문만
@@ -241,9 +242,9 @@ ADR-012, [erd.md](erd.md) 참고. 개별 레코드로 저장해두는 이유는,
 // response 200
 [ { "id": 100, "total_amount": 93000, "created_at": "2026-09-04T12:00:00Z", "status_summary": "배송중" } ]
 ```
-`status_summary`는 그 주문에 속한 `OrderItem`들 중 **가장 앞 단계**(결제완료 < 상품준비 < 배송중 <
-배송완료)를 보여준다 — 항목마다 배송 상태가 다를 수 있는데, 그중 가장 안 끝난 단계가 사실상 이 주문
-전체의 병목이기 때문.
+`status_summary`는 그 주문에 속한 `OrderItem`들 중 **가장 앞 단계**(결제대기 < 결제완료 < 상품준비 <
+배송중 < 배송완료, 취소됨은 별도)를 보여준다 — 항목마다 배송 상태가 다를 수 있는데, 그중 가장 안
+끝난 단계가 사실상 이 주문 전체의 병목이기 때문.
 
 ### GET /orders/{id}
 **인증**: 로그인 필요 — 본인 주문만(다른 사람 주문 id면 404)
@@ -253,31 +254,43 @@ ADR-012, [erd.md](erd.md) 참고. 개별 레코드로 저장해두는 이유는,
   "id": 100, "total_amount": 93000, "created_at": "...",
   "items": [
     { "product_name": "무선 이어폰", "creator_handle": "gil-dong", "quantity": 2,
-      "unit_price": 39000, "status": "배송중" }
+      "unit_price": 39000, "status": "배송중", "status_code": "shipping" }
   ]
 }
 ```
+`status`는 화면에 바로 쓰는 한글 라벨(`get_status_display()`), `status_code`는 프론트가 "결제하기"
+버튼 노출 여부(`pending` 존재 여부) 같은 로직 분기에 쓰는 원본 값(`pending`/`paid`/`preparing`/
+`shipping`/`delivered`/`cancelled`) → ADR-036 참고.
+
+### POST /orders/{id}/cancel
+**인증**: 로그인 필요 — 본인 주문만(다른 사람 주문 id면 404)
+```json
+// response 200 (취소 반영된 주문 상세, GET /orders/{id}와 동일한 형태)
+// response 400 { "error": "배송이 시작된 주문은 취소할 수 없습니다." }
+// response 400 { "error": "이미 취소된 주문입니다." }
+// response 502 { "error": "결제 취소에 실패했습니다: ..." }  // 포트원 쪽 취소 API 실패 시
+```
+주문 안의 `OrderItem` 중 하나라도 `shipping`/`delivered`면 전체 취소를 거부한다(부분 취소 없음,
+배송 시작 후엔 반품 문제라 이번 스코프 밖). 결제가 이미 완료된 주문이면 DB를 건드리기 전에 먼저
+포트원 서버에 결제 취소를 요청하고, 그게 성공해야만 재고 복원 + `OrderItem`을 `cancelled`로 바꾼다
+(PG 취소가 실패하면 DB는 그대로 둔 채 에러 반환 — PG와 DB 상태 불일치 방지) → ADR-036 참고.
 
 ## 결제
 
-### POST /payments/request
-**인증**: 로그인 필요
+### POST /payments/complete
+**인증**: 로그인 필요 — 본인 주문만(다른 사람 주문 id면 404)
 ```json
 // request
-{ "order_id": 100, "method": "card" }
+{ "order_id": 100, "payment_id": "order-100-1735900000000" }
 // response 200
-{ "pg_transaction_id": "imp_123456", "redirect_url": "..." }  // PortOne SDK 연동 방식에 따라 조정
+{ "order_id": 100, "status": "paid" }
+// response 400 { "error": "결제 금액이 일치하지 않습니다." }  // 등 검증 실패 사유
 ```
-
-### POST /payments/webhook
-**인증**: 없음(PG 서버가 호출) — 대신 PortOne 서명 검증으로 위조 요청 차단 필요
-```json
-// request (PortOne이 보내는 형식, 실제 필드는 PortOne 문서 확인 후 확정)
-{ "imp_uid": "imp_123456", "merchant_uid": "order_100", "status": "paid" }
-// response 200
-{ "received": true }
-```
-Celery로 비동기 처리(결제 검증 → Order/Payment 상태 갱신)하는 부분.
+프론트가 포트원 브라우저 SDK(`PortOne.requestPayment`)로 결제창을 띄우고 받은 `paymentId`를 그대로
+전달하면, 백엔드가 **프론트의 응답을 신뢰하지 않고** 포트원 서버 API(`GET /payments/{id}`)로 직접
+재조회해서 `status === "PAID"`이고 금액이 주문 총액과 일치하는지 확인한 뒤에만 `OrderItem`들을
+`pending → paid`로 바꾼다. 이번 스코프에서는 웹훅 없이 이 동기 호출만으로 처리(주문 생성 직후
+결제창을 바로 여는 흐름만 지원하면 충분하다고 판단) → ADR-036 참고.
 
 ## 크리에이터 대시보드
 
@@ -440,14 +453,17 @@ GET/POST만 명시) 시드 데이터로 만들어져 이미지가 없는 상품�
     "creator_handle": "gil-dong", "quantity": 2, "unit_price": 39000, "commission_amount": 1950,
     "status": "preparing" } ]
 ```
-`status`는 영문 슬러그(`paid`/`preparing`/`shipping`/`delivered`)로 내려준다 — 프론트에서 한글
-라벨로 매핑.
+`status`는 영문 슬러그(`pending`/`paid`/`preparing`/`shipping`/`delivered`/`cancelled`)로 내려준다
+— 프론트에서 한글 라벨로 매핑. 결제 연동 이후로는 `pending`(결제 전)과 `cancelled`(취소됨)도 실제로
+내려올 수 있는데, 이 두 상태는 관리자가 드롭다운으로 임의로 바꿀 수 없게 프론트에서 막아뒀다
+(`pending`은 아직 결제가 안 된 상태, `cancelled`는 PG 취소·재고 복원까지 끝난 상태라 여기서 상태만
+바꾸면 실제 결제/재고와 어긋나기 때문 — 취소는 반드시 `POST /orders/{id}/cancel`을 거쳐야 함).
 
 ### PATCH /admin/order-items/{id}/status
 **인증**: 역할: admin
 ```json
 // request
-{ "status": "shipping" }  // paid | preparing | shipping | delivered
+{ "status": "shipping" }  // paid | preparing | shipping | delivered (pending/cancelled은 여기로 설정 불가)
 // response 200
 { "id": 501, "status": "shipping" }
 ```
