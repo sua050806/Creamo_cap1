@@ -12,7 +12,7 @@ from orders.models import OrderItem
 from recommendations.models import CreatorRecommendation
 from vendors.models import VendorProfile
 
-from .models import CreatorProfile
+from .models import CreatorProfile, User
 from .permissions import IsApprovedCreator
 from .serializers import (
     CreatorDetailSerializer,
@@ -22,6 +22,7 @@ from .serializers import (
     SignupSerializer,
     UserSerializer,
 )
+from .verification import VerificationError, clear_verification, send_verification_code, verify_code
 
 
 class CsrfView(APIView):
@@ -40,9 +41,52 @@ class SignupView(APIView):
         serializer = SignupSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
+        # 인증 완료 표시는 1회용 — 가입이 끝났으면 지워서 재사용(같은 인증으로 또 가입 시도 등)을 막는다.
+        clear_verification(user.email)
         # 가입 직후 바로 다음 단계(크리에이터 프로필 작성 등)를 진행할 수 있게 자동 로그인시킨다.
         login(request, user, backend="django.contrib.auth.backends.ModelBackend")
         return Response(UserSerializer(user).data, status=status.HTTP_201_CREATED)
+
+
+class CheckEmailView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        email = request.data.get("email")
+        if not email:
+            return Response({"error": "email이 필요합니다."}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"available": not User.objects.filter(email=email).exists()})
+
+
+class SendVerificationCodeView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        email = request.data.get("email")
+        if not email:
+            return Response({"error": "email이 필요합니다."}, status=status.HTTP_400_BAD_REQUEST)
+        if User.objects.filter(email=email).exists():
+            return Response({"error": "이미 가입된 이메일입니다."}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            send_verification_code(email)
+        except VerificationError as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"detail": "인증번호를 발송했습니다."})
+
+
+class VerifyCodeView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        email = request.data.get("email")
+        code = request.data.get("code")
+        if not email or not code:
+            return Response({"error": "email과 code가 필요합니다."}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            verify_code(email, code)
+        except VerificationError as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"verified": True})
 
 
 class LoginView(APIView):

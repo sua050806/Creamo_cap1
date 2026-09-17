@@ -1,6 +1,7 @@
 from django.urls import path
 
 from .views import (
+    CheckEmailView,
     CreatorDashboardProductsView,
     CreatorDashboardStatsView,
     CreatorDetailView,
@@ -11,11 +12,16 @@ from .views import (
     LoginView,
     LogoutView,
     MeView,
+    SendVerificationCodeView,
     SignupView,
+    VerifyCodeView,
 )
 
 urlpatterns = [
     path("auth/csrf", CsrfView.as_view()),
+    path("auth/check-email", CheckEmailView.as_view()),
+    path("auth/send-verification-code", SendVerificationCodeView.as_view()),
+    path("auth/verify-code", VerifyCodeView.as_view()),
     path("auth/signup", SignupView.as_view()),
     path("auth/login", LoginView.as_view()),
     path("auth/logout", LogoutView.as_view()),

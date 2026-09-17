@@ -9,8 +9,48 @@
 
 ## 인증
 
-### POST /auth/signup
+### POST /auth/check-email
 **인증**: 없음
+```json
+// request
+{ "email": "buyer@example.com" }
+// response 200
+{ "available": true }
+```
+`User.email`에 이미 존재하는지만 확인하는 단순 조회. 회원가입 폼에서 이메일 입력 직후 바로 호출
+(→ ADR-039 참고).
+
+### POST /auth/send-verification-code
+**인증**: 없음
+```json
+// request
+{ "email": "buyer@example.com" }
+// response 200
+{ "detail": "인증번호를 발송했습니다." }
+// response 400 { "error": "이미 가입된 이메일입니다." }
+// response 400 { "error": "잠시 후 다시 시도해주세요. (재발송은 60초마다 가능합니다)" }
+```
+6자리 인증코드를 생성해서 Redis에 5분 TTL로 저장하고, 그 이메일로 발송(Django `send_mail`, SMTP는
+요청-응답 안에서 동기 처리 — 별도 백그라운드 작업 없음). 같은 이메일로는 60초 안에 재요청 불가
+→ ADR-039 참고.
+
+### POST /auth/verify-code
+**인증**: 없음
+```json
+// request
+{ "email": "buyer@example.com", "code": "123456" }
+// response 200
+{ "verified": true }
+// response 400 { "error": "인증번호가 일치하지 않습니다. (2/5회)" }
+// response 400 { "error": "인증번호를 너무 많이 틀렸습니다. 다시 받아주세요." }
+// response 400 { "error": "인증번호가 없거나 만료됐습니다. 다시 받아주세요." }
+```
+코드가 맞으면 Redis에 `email_verified:{email}`을 30분 TTL로 표시 — `POST /auth/signup`이 이 값을
+확인해서 인증 여부를 최종 검증한다. 틀린 시도가 5회를 넘으면 코드를 무효화하고 재발송을 요구
+→ ADR-039 참고.
+
+### POST /auth/signup
+**인증**: 없음 (단, `email`이 위 절차로 인증 완료된 상태여야 함 → ADR-039 참고)
 ```json
 // request
 {
@@ -33,6 +73,10 @@
 `username` 필드를 요구하기 때문 — `docs/erd.md` User 참고). 가입 성공 시 서버가 바로 로그인 처리까지
 해준다(세션 쿠키 발급) — 그래야 크리에이터가 가입 직후 바로 `POST /creator/profile`을 이어서 호출할
 수 있다.
+
+`email`이 `POST /auth/verify-code`로 인증 완료(Redis `email_verified:{email}` 존재)되지 않은
+상태면 `{"email": ["이메일 인증을 먼저 완료해주세요."]}` 400 에러로 거부된다. 가입 성공 시 이
+인증 완료 표시는 지워진다(1회용) → ADR-039 참고.
 
 ### POST /creator/profile (스펙 5번 표에는 없던 것, 이번에 추가)
 **인증**: 로그인 필요, role=`creator`인 본인만 (이미 프로필이 있으면 재생성 불가)

@@ -169,6 +169,20 @@ PORTONE_STORE_ID = os.environ.get('PORTONE_STORE_ID', '')
 PORTONE_CHANNEL_KEY = os.environ.get('PORTONE_CHANNEL_KEY', '')
 PORTONE_API_SECRET = os.environ.get('PORTONE_API_SECRET', '')
 
+# 회원가입 이메일 인증 발송용 SMTP. 값은 루트 .env에서 docker-compose를 거쳐 들어옴 → ADR-039 참고.
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')
+EMAIL_PORT = int(os.environ.get('EMAIL_PORT', '587'))
+EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'True') == 'True'
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
+DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
+
+# Redis 연결 정보. 이번 이메일 인증 기능 전에는 docker-compose에만 떠 있고 실제로 쓰는 코드가
+# 없었음(ADR-039 참고) — accounts/verification.py에서 이메일 인증코드 저장·조회에 사용.
+REDIS_HOST = os.environ.get('REDIS_HOST', 'localhost')
+REDIS_PORT = int(os.environ.get('REDIS_PORT', '6379'))
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 

@@ -3,6 +3,7 @@ from rest_framework import serializers
 from catalog.models import Category
 
 from .models import CreatorProfile, User
+from .verification import is_email_verified
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -21,6 +22,13 @@ class SignupSerializer(serializers.ModelSerializer):
     def validate_role(self, value):
         if value not in (User.Role.BUYER, User.Role.CREATOR):
             raise serializers.ValidationError("가입 시 선택할 수 있는 역할은 구매자 또는 크리에이터입니다.")
+        return value
+
+    def validate_email(self, value):
+        # POST /auth/verify-code로 인증을 마쳐야만 Redis에 이 값이 존재함(ADR-039 참고) — 인증
+        # 절차를 안 거치고 가입 API를 직접 호출하는 걸 막는 최종 방어선.
+        if not is_email_verified(value):
+            raise serializers.ValidationError("이메일 인증을 먼저 완료해주세요.")
         return value
 
     def create(self, validated_data):
