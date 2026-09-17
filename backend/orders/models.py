@@ -45,6 +45,10 @@ class OrderItem(models.Model):
     unit_price = models.PositiveIntegerField()
     commission_amount = models.PositiveIntegerField()
     status = models.CharField(max_length=10, choices=Status.choices, default=Status.PENDING)
+    # 정산 생성(POST /admin/settlements/generate)에 이미 포함됐는지 표시. 배송완료된 항목 중 이 값이
+    # 비어있는 것만 다음 정산 대상으로 잡아서, 버튼을 여러 번 눌러도 같은 항목이 중복으로 정산되지
+    # 않게 한다 → ADR-038 참고.
+    settled_at = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):
         return f"{self.product.name} x{self.quantity}"

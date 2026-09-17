@@ -205,3 +205,8 @@ export interface AdminSettlement {
   status: "pending" | "approved" | "completed";
   approved_at: string | null;
 }
+
+export interface AdminSettlementGenerateResponse {
+  created: number;
+  settlements: AdminSettlement[];
+}

@@ -94,6 +94,7 @@ erDiagram
         int unit_price "주문 시점 스냅샷"
         int commission_amount "주문 시점 스냅샷"
         string status "결제대기/결제완료/상품준비/배송중/배송완료/취소됨(ADR-036)"
+        datetime settled_at "nullable, 정산 생성에 포함된 시각 — 중복 정산 방지용(ADR-038)"
     }
     Payment {
         int id PK

@@ -1,3 +1,4 @@
+from django.db import transaction
 from django.utils import timezone
 from rest_framework import status as http_status
 from rest_framework.exceptions import ValidationError
@@ -261,3 +262,71 @@ class AdminSettlementsView(APIView):
         settlement.approved_at = timezone.now()
         settlement.save()
         return Response({"id": settlement.id, "status": settlement.status})
+
+
+class AdminSettlementGenerateView(APIView):
+    """정산 대상·금액을 실제 주문 데이터로 계산해서 Settlement를 만든다. 원래는 Celery 배치가 주기적으로
+    미리 만들어두는 걸 가정했지만(AdminSettlementsView 참고), 4주 캡스톤 스코프에서 별도 백그라운드
+    작업 인프라(Celery/주기 실행)까지 만들 시간 여유가 없어서 관리자가 버튼을 누르면 그 자리에서 동기
+    계산하는 방식으로 단순화함 → ADR-038 참고.
+
+    배송완료(delivered)된 주문 항목 중 아직 어떤 정산에도 포함되지 않은 것(settled_at이 비어있는 것)만
+    대상으로 하고, 크리에이터별로는 commission_amount 합계를, 벤더별로는 (판매금액 - 커미션) 합계를
+    각각 하나의 Settlement로 만든다. 처리한 항목은 settled_at을 채워서 다음 실행 때 중복 집계되지
+    않게 한다."""
+
+    permission_classes = [IsAdmin]
+
+    def post(self, request):
+        with transaction.atomic():
+            items = list(
+                OrderItem.objects.select_for_update()
+                .filter(status=OrderItem.Status.DELIVERED, settled_at__isnull=True)
+                .select_related("order", "product")
+            )
+            if not items:
+                return Response({"created": 0, "settlements": []})
+
+            period_start = min(item.order.created_at for item in items).date()
+            period_end = timezone.now().date()
+            now = timezone.now()
+
+            created = []
+
+            creator_totals = {}
+            for item in items:
+                if item.creator_id is None:
+                    continue
+                creator_totals[item.creator_id] = creator_totals.get(item.creator_id, 0) + item.commission_amount
+            for creator_id, amount in creator_totals.items():
+                if amount <= 0:
+                    continue
+                settlement = Settlement.objects.create(
+                    target_type=Settlement.TargetType.CREATOR,
+                    target_id=creator_id,
+                    amount=amount,
+                    period_start=period_start,
+                    period_end=period_end,
+                )
+                created.append(settlement)
+
+            vendor_totals = {}
+            for item in items:
+                vendor_id = item.product.vendor_id
+                revenue = item.unit_price * item.quantity - item.commission_amount
+                vendor_totals[vendor_id] = vendor_totals.get(vendor_id, 0) + revenue
+            for vendor_id, amount in vendor_totals.items():
+                if amount <= 0:
+                    continue
+                settlement = Settlement.objects.create(
+                    target_type=Settlement.TargetType.VENDOR,
+                    target_id=vendor_id,
+                    amount=amount,
+                    period_start=period_start,
+                    period_end=period_end,
+                )
+                created.append(settlement)
+
+            OrderItem.objects.filter(id__in=[item.id for item in items]).update(settled_at=now)
+
+        return Response({"created": len(created), "settlements": AdminSettlementSerializer(created, many=True).data})

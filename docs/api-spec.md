@@ -501,9 +501,33 @@ GET/POST만 명시) 시드 데이터로 만들어져 이미지가 없는 상품�
 // response 200
 { "id": 20, "status": "approved" }
 ```
-정산 대상·금액 자체는 Celery 배치 작업이 주기적으로 계산해서 미리 만들어두고, 이 API는 그 결과를
-승인만 하는 흐름으로 가정. 실제 Celery 배치는 아직 구현 전이라(4주차 스코프), 그 전까지는
-`settlements/migrations/0002_seed_demo_settlements.py`로 만든 데모 데이터로 화면을 확인한다.
+정산 대상·금액 자체는 원래 Celery 배치 작업이 주기적으로 계산해서 미리 만들어두고 이 API는 승인만
+하는 흐름으로 가정했었는데, 4주 캡스톤 스코프에서 별도 배치 인프라까지 만들 여유가 없어서 아래
+`POST /admin/settlements/generate`로 대체함 → [decisions.md](decisions.md) ADR-038 참고.
+초기에는 `settlements/migrations/0002_seed_demo_settlements.py`로 만든 데모 데이터로 화면만
+확인했었지만, 지금은 이 데모 데이터와 실제 계산으로 생성된 정산이 같은 목록에 함께 표시된다.
+
+### POST /admin/settlements/generate
+**인증**: 역할: admin
+```json
+// request 없음
+// response 200
+{
+  "created": 4,
+  "settlements": [
+    { "id": 21, "target_type": "creator", "target_id": 3, "target_name": "gil-dong", "amount": 5800,
+      "period_start": "2026-09-01", "period_end": "2026-09-17", "status": "pending", "approved_at": null }
+  ]
+}
+```
+배송완료(`delivered`)됐고 아직 어떤 정산에도 안 잡힌(`OrderItem.settled_at`이 비어있는) 주문 항목을
+전부 찾아서, 크리에이터별로는 `commission_amount` 합계를, 벤더별로는 `(단가×수량 − commission_amount)`
+합계를 각각 `Settlement`로 생성한다(금액이 0 이하면 생성 안 함). `period_start`는 포함된 항목 중
+가장 오래된 주문의 생성일, `period_end`는 실행 시점의 오늘 날짜. 처리한 항목은 `settled_at`을 채워서
+다시 이 API를 호출해도 중복으로 잡히지 않는다 — 새로 정산할 게 없으면 `created: 0`을 돌려준다(별도
+관리자 승인/거부 없이 언제든 다시 눌러도 안전). Celery 없이 요청-응답 안에서 동기로 전부 계산해서
+끝내는 방식이라, 주문 규모가 지금(캡스톤 데모 수준)보다 훨씬 커지면 이 방식은 적합하지 않을 수
+있음 → ADR-038 참고.
 
 ---
 
