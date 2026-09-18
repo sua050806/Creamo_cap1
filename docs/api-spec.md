@@ -516,6 +516,20 @@ GET/POST만 명시) 시드 데이터로 만들어져 이미지가 없는 상품�
 // response 200
 { "id": 10, "name": "무선 이어폰", "thumbnail": "http://.../media/products/xxx.jpg", ... }
 ```
+`status`는 이 엔드포인트로 못 바꾼다(`read_only_fields`) — 아래 `PATCH .../status`로 따로 뺐다.
+
+### PATCH /admin/products/{id}/status
+**인증**: 역할: admin — 판매중/품절/비활성 전환(`AdminVendorStatusView`와 같은 패턴). 상품을 실제로
+지우는 기능은 없다 — `OrderItem.product`가 `on_delete=PROTECT`라 주문 이력이 하나라도 있는 상품은
+DB에서 못 지운다. "삭제"에 해당하는 건 여기로 `inactive`를 보내서 공개 목록·상세 노출에서 빼는
+것(`GET /products`는 `status=selling`만 보여줌) → ADR-042 참고. 배포 후 "상품 삭제는 어떻게 하냐"는
+질문으로 추가 — `status` 필드 자체는 원래 있었는데 바꾸는 화면이 없었음.
+```json
+// request { "status": "inactive" }
+// response 200 { "id": 10, "status": "inactive" }
+```
+주의: `GET /products/{id}`(상품 상세)는 벤더 상태만 확인하고 상품 자체의 `status`는 안 가려서,
+`inactive`로 바꿔도 직접 URL로 들어가면 여전히 보인다(목록에만 안 뜸) — 이번 스코프에서는 안 고침.
 
 ### GET /admin/order-items
 **인증**: 역할: admin — 배송 상태 변경 화면에 띄울 목록. 문서에는 없었지만(원래 PATCH만 명시) 화면

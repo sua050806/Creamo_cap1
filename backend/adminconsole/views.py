@@ -167,6 +167,31 @@ class AdminProductDetailView(RetrieveUpdateAPIView):
     queryset = Product.objects.select_related("vendor", "category").all()
 
 
+class AdminProductStatusView(APIView):
+    """상품 판매중/품절/비활성 전환. 실제로 상품을 지우는 기능은 없다 — OrderItem.product가
+    on_delete=PROTECT라 주문 이력이 하나라도 있으면 DB에서 지울 수 없고, 지운다 해도 그 상품을
+    가리키던 과거 주문 내역이 깨진다. "삭제"에 해당하는 건 이 status를 inactive로 바꿔서
+    목록/상세 노출에서 빼는 것(AdminVendorStatusView와 같은 패턴) — 배포 후 "상품 삭제는 어떻게
+    하냐"는 질문으로 추가, status 자체는 이미 있었는데(catalog.models.Product.Status) 바꿀 수 있는
+    화면이 없었음."""
+
+    permission_classes = [IsAdmin]
+
+    def patch(self, request, pk):
+        try:
+            product = Product.objects.get(id=pk)
+        except Product.DoesNotExist:
+            return Response({"error": "상품을 찾을 수 없습니다."}, status=http_status.HTTP_404_NOT_FOUND)
+
+        new_status = request.data.get("status")
+        if new_status not in Product.Status.values:
+            raise ValidationError({"status": f"status는 {Product.Status.values} 중 하나여야 합니다."})
+
+        product.status = new_status
+        product.save(update_fields=["status"])
+        return Response({"id": product.id, "status": product.status})
+
+
 class AdminProductRecommendationsView(APIView):
     """기존 상품에 추천 크리에이터를 연결/해제. 등록 시점에 안 정했거나, 나중에 크리에이터를 추가·
     교체하고 싶을 때 사용 — CreatorRecommendation 생성을 원래 Django 관리자 사이트에서만 하던 것을

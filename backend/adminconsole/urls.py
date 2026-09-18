@@ -7,6 +7,7 @@ from .views import (
     AdminProductDetailView,
     AdminProductRecommendationsView,
     AdminProductsView,
+    AdminProductStatusView,
     AdminSettlementGenerateView,
     AdminSettlementsView,
     AdminUserRoleView,
@@ -19,6 +20,7 @@ urlpatterns = [
     path("admin/applications", AdminApplicationsView.as_view()),
     path("admin/products", AdminProductsView.as_view()),
     path("admin/products/<int:pk>", AdminProductDetailView.as_view()),
+    path("admin/products/<int:pk>/status", AdminProductStatusView.as_view()),
     path("admin/products/<int:pk>/recommendations", AdminProductRecommendationsView.as_view()),
     path(
         "admin/products/<int:pk>/recommendations/<int:creator_id>",

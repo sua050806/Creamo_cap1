@@ -24,7 +24,8 @@ const EMPTY_FORM = {
 };
 
 // 벤더로부터 오프라인으로 받은 상품 정보를 관리자가 대리 등록. GET/POST /admin/products,
-// PATCH /admin/products/{id}(이미지 업로드/교체 전용), POST/DELETE
+// PATCH /admin/products/{id}(이미지 업로드/교체 전용), PATCH /admin/products/{id}/status
+// (판매중/품절/비활성 전환 — "삭제"에 해당), POST/DELETE
 // /admin/products/{id}/recommendations(추천 크리에이터 연결/해제) 연동.
 export default function ProductsTab() {
   const [products, setProducts] = useState<AdminProduct[] | null>(null);
@@ -39,6 +40,7 @@ export default function ProductsTab() {
   const [uploadingId, setUploadingId] = useState<number | null>(null);
   const [addingRecommendId, setAddingRecommendId] = useState<number | null>(null);
   const [newRecommendCreatorId, setNewRecommendCreatorId] = useState<Record<number, string>>({});
+  const [changingStatusId, setChangingStatusId] = useState<number | null>(null);
 
   useEffect(() => {
     apiFetch<AdminProduct[]>("/admin/products").then(setProducts).catch(() => setProducts([]));
@@ -151,6 +153,24 @@ export default function ProductsTab() {
       { method: "DELETE" }
     );
     setProducts((prev) => (prev ? prev.map((p) => (p.id === product.id ? updated : p)) : prev));
+  };
+
+  // 상품을 실제로 지우는 기능은 없다 — 주문 이력이 있는 상품은 DB에서 못 지운다(OrderItem.product가
+  // on_delete=PROTECT). "삭제"에 해당하는 건 상태를 비활성으로 바꿔서 목록·상세 노출에서 빼는 것
+  // (배포 후 "상품 삭제는 어떻게 하냐"는 질문으로 추가).
+  const handleStatusChange = async (product: AdminProduct, status: string) => {
+    setChangingStatusId(product.id);
+    try {
+      await apiFetch(`/admin/products/${product.id}/status`, {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
+      });
+      setProducts((prev) => (prev ? prev.map((p) => (p.id === product.id ? { ...p, status } : p)) : prev));
+    } catch {
+      setError("상태 변경에 실패했습니다.");
+    } finally {
+      setChangingStatusId(null);
+    }
   };
 
   return (
@@ -348,7 +368,20 @@ export default function ProductsTab() {
                     <td className="px-4 py-3 text-foreground/60">{p.category_name}</td>
                     <td className="px-4 py-3">{p.price.toLocaleString()}원</td>
                     <td className="px-4 py-3">{p.commission_rate}%</td>
-                    <td className="px-4 py-3">{STATUS_LABEL[p.status] ?? p.status}</td>
+                    <td className="px-4 py-3">
+                      <select
+                        value={p.status}
+                        disabled={changingStatusId === p.id}
+                        onChange={(e) => handleStatusChange(p, e.target.value)}
+                        className="rounded-lg border border-black/10 px-2 py-1 text-xs disabled:opacity-50"
+                      >
+                        {Object.entries(STATUS_LABEL).map(([value, label]) => (
+                          <option key={value} value={value}>
+                            {label}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
                     <td className="px-4 py-3">
                       <div className="flex flex-col gap-1.5">
                         {p.recommended_by.length > 0 && (
