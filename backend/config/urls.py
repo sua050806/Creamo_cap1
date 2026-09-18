@@ -15,9 +15,9 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.conf import settings
-from django.conf.urls.static import static
 from django.contrib import admin
-from django.urls import include, path
+from django.urls import include, path, re_path
+from django.views.static import serve
 
 urlpatterns = [
     # 프론트엔드가 우리 관리자 콘솔 API를 /admin/...으로 쓰기로 스펙에 정해둬서(api-spec.md),
@@ -31,8 +31,12 @@ urlpatterns = [
 ]
 
 # 이 프로젝트는 nginx 같은 별도 웹서버 없이 Django 컨테이너가 직접 미디어 파일을 서빙하는 구조라서
-# (docs의 AWS 배포 가이드 5번 참고), DEBUG 여부와 무관하게 항상 켜져 있어야 한다. DEBUG=True일 때만
-# 서빙하던 이전 코드는 배포 시 DEBUG=False로 바꾸는 순간 업로드한 상품 이미지가 전부 404 나는 원인이었음
-# (배포해서 실제로 이미지 올려보다가 발견) → 트래픽이 많지 않은 이번 규모(캡스톤 발표용)에서는 이 방식이
-# django.contrib.staticfiles의 static() 성능 경고보다 "nginx 없이 간단하게" 쪽을 택하는 게 맞다고 판단.
-urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+# (docs의 AWS 배포 가이드 5번 참고), DEBUG 여부와 무관하게 항상 켜져 있어야 한다.
+# django.conf.urls.static의 static() 헬퍼는 안 쓴다 — Django 5.2 기준 그 함수는 DEBUG=False면
+# 옵션(insecure= 같은 것도 이제 없음) 없이 무조건 빈 리스트를 반환해버려서, DEBUG=False에서 절대
+# 미디어를 못 켬(실제로 배포해서 두 번이나 404 겪고서야 발견 — static() 소스를 직접 열어봐야 알 수
+# 있는 내용이었음). 그래서 그 헬퍼가 내부적으로 쓰는 django.views.static.serve 뷰를 직접 등록한다 —
+# 이러면 DEBUG 체크를 아예 안 거치므로 항상 서빙된다.
+urlpatterns += [
+    re_path(r'^media/(?P<path>.*)$', serve, {'document_root': settings.MEDIA_ROOT}),
+]
