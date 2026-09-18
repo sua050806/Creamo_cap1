@@ -13,6 +13,18 @@ function resolveServerSideBaseUrl() {
   return process.env.INTERNAL_API_BASE_URL || API_BASE_URL;
 }
 
+// DRF가 thumbnail 같은 이미지 필드를 절대 URL로 돌려줄 때, 그 요청을 실제로 받은 Host를 기준으로
+// 만든다 — SSR 쪽 fetch는 INTERNAL_API_BASE_URL(도커 내부망 주소, 예: http://backend:8000)로 붙기
+// 때문에 그 응답에 박히는 thumbnail도 http://backend:8000/media/...가 되는데, 이건 브라우저가 절대
+// 못 불러온다(그 이름은 도커 내부망 전용). 배포 후 신상품 썸네일이 깨져서 발견 → 경로만 남기고
+// 브라우저가 실제로 붙을 수 있는 공인 주소(API_BASE_URL)로 다시 붙여준다. <img src={...}>로 쓰는
+// 모든 곳에서 thumbnail을 직접 쓰지 말고 반드시 이 함수를 거쳐야 함.
+export function resolveMediaUrl(url: string | null | undefined): string | undefined {
+  if (!url) return undefined;
+  const path = url.startsWith("http") ? new URL(url).pathname : url.startsWith("/") ? url : `/${url}`;
+  return `${API_BASE_URL}${path}`;
+}
+
 export class ApiError extends Error {
   status: number;
 

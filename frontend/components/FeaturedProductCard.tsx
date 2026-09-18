@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { resolveMediaUrl } from "@/lib/api";
 
 const THUMBNAIL_GRADIENTS = [
   "from-zinc-400 to-zinc-700",
@@ -34,7 +35,7 @@ export default function FeaturedProductCard({
       {thumbnail ? (
         // eslint-disable-next-line @next/next/no-img-element -- 백엔드가 주는 이미지, next/image 설정 없이 사용
         <img
-          src={thumbnail}
+          src={resolveMediaUrl(thumbnail)}
           alt={name}
           className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
         />

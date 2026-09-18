@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, resolveMediaUrl } from "@/lib/api";
 import type { AdminProduct, AdminVendor, ApiCategory, ApiCreator } from "@/lib/types";
 
 const STATUS_LABEL: Record<string, string> = {
@@ -324,7 +324,7 @@ export default function ProductsTab() {
                         {p.thumbnail ? (
                           // eslint-disable-next-line @next/next/no-img-element -- 백엔드가 주는 이미지
                           <img
-                            src={p.thumbnail}
+                            src={resolveMediaUrl(p.thumbnail)}
                             alt={p.name}
                             className="h-10 w-10 rounded-lg object-cover"
                           />

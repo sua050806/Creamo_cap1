@@ -1,5 +1,5 @@
 import ProductSlider from "@/components/ProductSlider";
-import { apiFetchPublic, ApiError } from "@/lib/api";
+import { apiFetchPublic, ApiError, resolveMediaUrl } from "@/lib/api";
 import type { ApiCreatorDetail, ApiCreatorProduct } from "@/lib/types";
 
 const AVATAR_GRADIENTS = [
@@ -45,7 +45,7 @@ export default async function CreatorProfilePage({
           {creator.profile_image ? (
             // eslint-disable-next-line @next/next/no-img-element -- 백엔드가 주는 이미지
             <img
-              src={creator.profile_image}
+              src={resolveMediaUrl(creator.profile_image)}
               alt={creator.handle}
               className="h-20 w-20 shrink-0 rounded-full object-cover"
             />

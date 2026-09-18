@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { apiFetchPublic, ApiError } from "@/lib/api";
+import { apiFetchPublic, ApiError, resolveMediaUrl } from "@/lib/api";
 import type { ApiProductDetail } from "@/lib/types";
 import ProductActions from "./product-actions";
 
@@ -42,7 +42,7 @@ export default async function ProductDetailPage({
           {product.thumbnail ? (
             // eslint-disable-next-line @next/next/no-img-element -- 백엔드가 주는 이미지
             <img
-              src={product.thumbnail}
+              src={resolveMediaUrl(product.thumbnail)}
               alt={product.name}
               className="h-72 w-full rounded-2xl object-cover"
             />

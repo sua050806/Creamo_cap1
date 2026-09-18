@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import ProductCard from "@/components/ProductCard";
 import { useAuth } from "@/lib/auth-context";
-import { apiFetch, apiFetchPublic, ApiError } from "@/lib/api";
+import { apiFetch, apiFetchPublic, ApiError, resolveMediaUrl } from "@/lib/api";
 import type { ApiCart, ApiOrderCreateResponse, ApiProduct, PaginatedResponse } from "@/lib/types";
 
 const buttonClass =
@@ -152,7 +152,7 @@ export default function CartPage() {
                 {item.product.thumbnail ? (
                   // eslint-disable-next-line @next/next/no-img-element -- 백엔드가 주는 이미지
                   <img
-                    src={item.product.thumbnail}
+                    src={resolveMediaUrl(item.product.thumbnail)}
                     alt={item.product.name}
                     className="h-16 w-16 shrink-0 rounded-lg object-cover"
                   />
