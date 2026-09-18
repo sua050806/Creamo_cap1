@@ -30,5 +30,9 @@ urlpatterns = [
     path('', include('payments.urls')),
 ]
 
-if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+# 이 프로젝트는 nginx 같은 별도 웹서버 없이 Django 컨테이너가 직접 미디어 파일을 서빙하는 구조라서
+# (docs의 AWS 배포 가이드 5번 참고), DEBUG 여부와 무관하게 항상 켜져 있어야 한다. DEBUG=True일 때만
+# 서빙하던 이전 코드는 배포 시 DEBUG=False로 바꾸는 순간 업로드한 상품 이미지가 전부 404 나는 원인이었음
+# (배포해서 실제로 이미지 올려보다가 발견) → 트래픽이 많지 않은 이번 규모(캡스톤 발표용)에서는 이 방식이
+# django.contrib.staticfiles의 static() 성능 경고보다 "nginx 없이 간단하게" 쪽을 택하는 게 맞다고 판단.
+urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
