@@ -21,12 +21,18 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-=lvlbt+q*t598z#wah)i(7um6hhmvt&#uk0rp63n0na@e!wbcd'
+# 로컬 개발 기본값은 예전부터 쓰던 dev 키 그대로 두되(이미 git 이력에 노출돼 있어 더 숨길 의미가
+# 없음), 실제 배포 시엔 .env에 새로 생성한 값을 넣어서 이 기본값을 쓰지 않게 한다 → ADR-040 참고.
+SECRET_KEY = os.environ.get(
+    'SECRET_KEY', 'django-insecure-=lvlbt+q*t598z#wah)i(7um6hhmvt&#uk0rp63n0na@e!wbcd'
+)
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+# 배포 전엔 DEBUG=True/ALLOWED_HOSTS=[]가 하드코딩돼 있어서, 배포 가이드대로 DEBUG를 끄면 그 즉시
+# ALLOWED_HOSTS가 비어있어 모든 요청이 400으로 막히는 상태였음(통합 테스트 중 발견) → ADR-040 참고.
+DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = [h.strip() for h in os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',') if h.strip()]
 
 
 # Application definition
@@ -61,17 +67,18 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-# Next.js 개발 서버(로컬 3000번 포트)에서 세션 쿠키를 실어 API를 호출할 수 있게 허용
-# (ADR-011: 인증 방식은 세션 쿠키)
+# Next.js 프론트(로컬 3000번 포트, 배포 시엔 실제 도메인/IP)에서 세션 쿠키를 실어 API를 호출할 수
+# 있게 허용(ADR-011: 인증 방식은 세션 쿠키). 예전엔 localhost:3000으로 하드코딩돼 있어서 배포된
+# 프론트 주소에서 오는 요청은 전부 CORS로 막히는 상태였음 → ADR-040 참고.
 CORS_ALLOWED_ORIGINS = [
-    'http://localhost:3000',
+    o.strip() for o in os.environ.get('CORS_ALLOWED_ORIGINS', 'http://localhost:3000').split(',') if o.strip()
 ]
 CORS_ALLOW_CREDENTIALS = True
 
 # Django의 CSRF 보호는 CORS와 별개로 요청의 Origin이 신뢰할 수 있는 곳인지도 검사한다.
 # 프론트(3000)와 백엔드(8000)가 포트가 달라 별도 출처로 취급되므로 명시적으로 등록해야 함.
 CSRF_TRUSTED_ORIGINS = [
-    'http://localhost:3000',
+    o.strip() for o in os.environ.get('CSRF_TRUSTED_ORIGINS', 'http://localhost:3000').split(',') if o.strip()
 ]
 
 AUTH_USER_MODEL = 'accounts.User'
