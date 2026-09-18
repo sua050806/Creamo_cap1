@@ -228,6 +228,17 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
             </div>
 
             <div className="mt-6 rounded-2xl border border-black/5 bg-white p-5 shadow-sm">
+              <h2 className="mb-3 text-sm font-medium text-foreground/70">배송지</h2>
+              <p className="text-sm">
+                {order.recipient_name} · {order.phone}
+              </p>
+              <p className="mt-1 text-sm text-foreground/60">
+                {order.address}
+                {order.address_detail && ` ${order.address_detail}`}
+              </p>
+            </div>
+
+            <div className="mt-6 rounded-2xl border border-black/5 bg-white p-5 shadow-sm">
               <div className="flex items-center justify-between">
                 <p className="text-sm text-foreground/60">총 결제 금액</p>
                 <p className="text-xl font-semibold">{order.total_amount.toLocaleString()}원</p>

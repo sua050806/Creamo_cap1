@@ -3,9 +3,10 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import ShippingAddressModal from "@/components/ShippingAddressModal";
 import { useAuth } from "@/lib/auth-context";
 import { apiFetch, ApiError } from "@/lib/api";
-import type { ApiOrderCreateResponse } from "@/lib/types";
+import type { ApiOrderCreateResponse, ShippingAddress } from "@/lib/types";
 
 const buttonClass =
   "flex-1 rounded-full px-4 py-2.5 text-sm font-medium transition-opacity hover:opacity-90";
@@ -31,6 +32,7 @@ export default function ProductActions({
   const [message, setMessage] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [buyingNow, setBuyingNow] = useState(false);
+  const [showAddressModal, setShowAddressModal] = useState(false);
 
   const handleAddToCart = async () => {
     if (!user) {
@@ -57,11 +59,15 @@ export default function ProductActions({
     }
   };
 
-  const handleBuyNow = async () => {
+  const handleBuyNow = () => {
     if (!user) {
       setMessage("로그인 후 구매할 수 있습니다.");
       return;
     }
+    setShowAddressModal(true);
+  };
+
+  const submitBuyNow = async (shippingAddress: ShippingAddress) => {
     setBuyingNow(true);
     setMessage(null);
     try {
@@ -71,11 +77,14 @@ export default function ProductActions({
           items: [
             { product_id: product.id, quantity, option: selectedOptions, creator_id: creatorId ?? null },
           ],
+          ...shippingAddress,
         }),
       });
+      setShowAddressModal(false);
       router.push(`/orders/${order_id}?confirmed=1`);
     } catch (err) {
       setMessage(err instanceof ApiError ? err.message : "주문에 실패했습니다.");
+      setShowAddressModal(false);
     } finally {
       setBuyingNow(false);
     }
@@ -154,6 +163,14 @@ export default function ProductActions({
             </>
           )}
         </p>
+      )}
+
+      {showAddressModal && (
+        <ShippingAddressModal
+          onConfirm={submitBuyNow}
+          onCancel={() => setShowAddressModal(false)}
+          submitting={buyingNow}
+        />
       )}
     </div>
   );

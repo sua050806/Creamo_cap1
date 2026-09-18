@@ -4,9 +4,10 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import ProductCard from "@/components/ProductCard";
+import ShippingAddressModal from "@/components/ShippingAddressModal";
 import { useAuth } from "@/lib/auth-context";
 import { apiFetch, apiFetchPublic, ApiError, resolveMediaUrl } from "@/lib/api";
-import type { ApiCart, ApiOrderCreateResponse, ApiProduct, PaginatedResponse } from "@/lib/types";
+import type { ApiCart, ApiOrderCreateResponse, ApiProduct, PaginatedResponse, ShippingAddress } from "@/lib/types";
 
 const buttonClass =
   "inline-block rounded-full bg-brand px-4 py-2.5 text-center text-sm font-medium text-brand-foreground transition-opacity hover:opacity-90";
@@ -21,6 +22,7 @@ export default function CartPage() {
   const [suggestions, setSuggestions] = useState<ApiProduct[]>([]);
   const [checkingOut, setCheckingOut] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [showAddressModal, setShowAddressModal] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -59,7 +61,7 @@ export default function CartPage() {
     }
   };
 
-  const handleCheckout = async () => {
+  const handleCheckout = async (shippingAddress: ShippingAddress) => {
     if (!cart || cart.items.length === 0) return;
     setCheckingOut(true);
     setCheckoutError(null);
@@ -73,14 +75,17 @@ export default function CartPage() {
             quantity: item.quantity,
             option: item.option,
           })),
+          ...shippingAddress,
         }),
       });
       // 주문 생성이 끝난 항목은 장바구니에서 비운다(주문 자체는 장바구니와 독립적인 API라 서버가
       // 자동으로 지워주지 않음).
       await Promise.all(cart.items.map((item) => apiFetch(`/cart/items/${item.id}`, { method: "DELETE" })));
+      setShowAddressModal(false);
       router.push(`/orders/${order_id}?confirmed=1`);
     } catch (err) {
       setCheckoutError(err instanceof ApiError ? err.message : "주문에 실패했습니다.");
+      setShowAddressModal(false);
       apiFetch<ApiCart>("/cart").then(setCart).catch(() => {});
     } finally {
       setCheckingOut(false);
@@ -217,7 +222,7 @@ export default function CartPage() {
             </div>
             {checkoutError && <p className="mt-2 text-xs text-red-500">{checkoutError}</p>}
             <button
-              onClick={handleCheckout}
+              onClick={() => setShowAddressModal(true)}
               disabled={checkingOut}
               className="mt-4 w-full rounded-full bg-brand px-4 py-2.5 text-sm font-medium text-brand-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
             >
@@ -225,6 +230,14 @@ export default function CartPage() {
             </button>
           </div>
         </div>
+      )}
+
+      {showAddressModal && (
+        <ShippingAddressModal
+          onConfirm={handleCheckout}
+          onCancel={() => setShowAddressModal(false)}
+          submitting={checkingOut}
+        />
       )}
     </main>
   );

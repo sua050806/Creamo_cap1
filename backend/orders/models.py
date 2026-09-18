@@ -7,6 +7,14 @@ class Order(models.Model):
         settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="orders"
     )
     total_amount = models.PositiveIntegerField()
+    # 배송지. 계정에 저장해두고 재사용하는 방식이 아니라(스코프 밖), 주문마다 새로 입력받아 스냅샷으로
+    # 저장한다 — 나중에 주소를 또 바꿔도 이미 발생한 주문의 배송지는 그대로 유지돼야 하기 때문(가격
+    # 스냅샷과 같은 이유). blank=True인 건 기존 시드 주문(orders.0002_seed_demo_order)과의 마이그레이션
+    # 호환 때문일 뿐, 실제로 새 주문을 만들 때는 뷰(OrderListCreateView.post)에서 필수로 검증한다.
+    recipient_name = models.CharField(max_length=50, blank=True, default="")
+    phone = models.CharField(max_length=20, blank=True, default="")
+    address = models.CharField(max_length=255, blank=True, default="")
+    address_detail = models.CharField(max_length=255, blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

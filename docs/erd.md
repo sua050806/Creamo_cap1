@@ -82,6 +82,10 @@ erDiagram
         int id PK
         int buyer_id FK
         int total_amount
+        string recipient_name "배송지 스냅샷, 주문마다 새로 입력(ADR-041)"
+        string phone
+        string address
+        string address_detail "선택"
         datetime created_at
     }
     OrderItem {

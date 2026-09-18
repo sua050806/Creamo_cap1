@@ -268,7 +268,9 @@ ADR-037 참고. `/creators/{id}` 프로필 페이지에서 이 목록의 상품�
   "items": [
     { "product_id": 10, "creator_id": 3, "quantity": 2, "option": {"색상": "블랙"} },
     { "product_id": 15, "creator_id": null, "quantity": 1, "option": {} }
-  ]
+  ],
+  "recipient_name": "홍길동", "phone": "010-1234-5678",
+  "address": "서울시 강남구 테헤란로 1", "address_detail": "101동 202호"
 }
 // response 201
 { "order_id": 100, "total_amount": 93000 }
@@ -277,6 +279,12 @@ ADR-037 참고. `/creators/{id}` 프로필 페이지에서 이 목록의 상품�
 장바구니와는 별개 API — 프론트가 장바구니 내용이든 "바로구매" 단일 상품이든 `items` 배열로 직접
 넘긴다(장바구니에서 주문한 경우, 주문 성공 후 프론트가 `DELETE /cart/items/{id}`로 해당 항목들을
 직접 비움 → ADR-035 참고).
+
+`recipient_name`/`phone`/`address`는 필수, `address_detail`만 선택 — 배포 후 실제로 써보다가 배송지를
+입력받는 화면 자체가 아예 없었다는 걸 발견해서 추가(ADR-041 참고). 계정에 저장해서 재사용하는 방식이
+아니라 주문마다 새로 입력받아 `Order`에 스냅샷으로 저장한다(가격 스냅샷과 같은 이유 — 나중에 주소를
+바꿔도 이미 발생한 주문의 배송지는 유지돼야 함). 프론트는 장바구니 "주문하기"/상품 상세 "바로구매"
+버튼을 누르는 시점에 `ShippingAddressModal`로 입력받아 그대로 실어 보낸다.
 
 재고 부족·존재하지 않는 옵션 조합·판매중 아닌 상품 중 하나라도 있으면 그 즉시 400으로 전체 요청을
 거부하고 어떤 것도 반영하지 않는다(부분 주문 없음, DB 트랜잭션으로 원자적 처리).
@@ -314,7 +322,9 @@ ADR-037 참고. `/creators/{id}` 프로필 페이지에서 이 목록의 상품�
   "items": [
     { "product_name": "무선 이어폰", "creator_handle": "gil-dong", "quantity": 2,
       "unit_price": 39000, "status": "배송중", "status_code": "shipping" }
-  ]
+  ],
+  "recipient_name": "홍길동", "phone": "010-1234-5678",
+  "address": "서울시 강남구 테헤란로 1", "address_detail": "101동 202호"
 }
 ```
 `status`는 화면에 바로 쓰는 한글 라벨(`get_status_display()`), `status_code`는 프론트가 "결제하기"
@@ -397,6 +407,10 @@ ADR-014 참고. 판매수·커미션 통계만으로 대시보드 핵심 기능�
 ```
 `creator_handle`/`creator_status`는 role이 creator이고 실제로 크리에이터 프로필을 작성한 경우에만
 값이 있고, 그 외엔 `null`(역할만 creator로 바뀌었고 아직 `/creator/apply`를 안 거친 경우 포함).
+API는 원래부터 이 두 경우(진짜 크리에이터가 아님 / creator인데 아직 신청 전)를 똑같이 `null`로
+내려주고 있었는데, 화면(`members-tab.tsx`)에서는 둘 다 "-"로만 보여서 관리자가 구분을 못 했음 —
+`role === "creator"`이면서 `creator_handle`이 없는 경우만 "신청 전" 배지를 따로 보여주도록 프론트만
+수정(ADR-041 참고, API 응답 자체는 안 바뀜).
 
 ### PATCH /admin/users/{id}/role
 **인증**: 역할: admin

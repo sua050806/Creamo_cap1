@@ -173,6 +173,12 @@ export default function MembersTab() {
                         @{u.creator_handle}
                         <StatusTag status={CREATOR_STATUS_LABEL[u.creator_status ?? ""] ?? u.creator_status ?? ""} />
                       </span>
+                    ) : u.role === "creator" ? (
+                      // role은 creator인데 CreatorProfile이 아직 없는 경우 — 크리에이터로 가입만 하고
+                      // /creator/apply로 실제 신청서(핸들·카테고리 등)를 아직 안 낸 상태. 이걸 일반
+                      // 회원과 똑같이 "-"로만 보여주면 관리자가 "신청이 아예 안 왔다"와 "이 사람은
+                      // 크리에이터가 아니다"를 구분할 수 없었음(사용자 요청으로 추가).
+                      <StatusTag status="신청 전" />
                     ) : (
                       "-"
                     )}

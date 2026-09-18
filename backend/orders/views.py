@@ -196,6 +196,15 @@ class OrderListCreateView(APIView):
         if not raw_items:
             raise ValidationError({"items": "최소 1개 이상의 상품이 필요합니다."})
 
+        # 배송지는 주문마다 새로 입력받는다(계정 저장·재사용은 스코프 밖) → 받는사람/연락처/주소는
+        # 필수, 상세주소만 선택.
+        recipient_name = (request.data.get("recipient_name") or "").strip()
+        phone = (request.data.get("phone") or "").strip()
+        address = (request.data.get("address") or "").strip()
+        address_detail = (request.data.get("address_detail") or "").strip()
+        if not recipient_name or not phone or not address:
+            raise ValidationError({"address": "받는 사람, 연락처, 주소는 필수입니다."})
+
         resolved_items = [_resolve_order_item(raw_item) for raw_item in raw_items]
 
         with transaction.atomic():
@@ -211,7 +220,14 @@ class OrderListCreateView(APIView):
                 product.save(update_fields=["stock"])
 
             total_amount = sum(r["unit_price"] * r["quantity"] for r in resolved_items)
-            order = Order.objects.create(buyer=request.user, total_amount=total_amount)
+            order = Order.objects.create(
+                buyer=request.user,
+                total_amount=total_amount,
+                recipient_name=recipient_name,
+                phone=phone,
+                address=address,
+                address_detail=address_detail,
+            )
             OrderItem.objects.bulk_create(
                 [
                     OrderItem(
