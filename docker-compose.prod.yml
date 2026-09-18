@@ -16,5 +16,12 @@ services:
         NEXT_PUBLIC_PORTONE_CHANNEL_KEY: ${NEXT_PUBLIC_PORTONE_CHANNEL_KEY}
     ports:
       - "3000:3000"
+    environment:
+      # 서버 컴포넌트(SSR) 쪽 fetch는 브라우저용 공인 주소 대신 도커 내부망으로 바로 백엔드에 붙게
+      # 한다 — 컨테이너가 자기 자신의 퍼블릭 IP로 나갔다 들어오는 왕복(hairpin NAT) 없이 가려는
+      # 것으로, 실제로 로컬에서 배포 흉내 검증 중 이 경로가 타임아웃 나는 걸 발견해서 추가함
+      # (lib/api.ts 참고) → ADR-040 참고. NEXT_PUBLIC_*과 달리 빌드 시점이 아니라 실행 시점에
+      # Node 서버가 읽는 값이라 build.args가 아니라 여기(environment)에 둔다.
+      INTERNAL_API_BASE_URL: http://backend:8000
     depends_on:
       - backend

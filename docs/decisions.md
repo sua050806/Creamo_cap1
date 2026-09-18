@@ -739,3 +739,42 @@ False`, `ALLOWED_HOSTS=가짜퍼블릭IP` 등으로 환경변수를 덮어써서
 확인. `frontend/Dockerfile`을 더미 빌드 인자로 실제로 빌드해서 성공하는 것, 빌드 결과물에 그 값이
 박혀 들어간 것까지 확인. 배포 가이드 문서(`Claude outputs/크리모_AWS배포_가이드.md`)도 실제로 만든
 구조에 맞게 갱신.
+
+**후속 — 완전히 새로 클론해서 실제로 다 띄워보다가 발견한 추가 문제 2건(2026-09-18 계속)**:
+git clone부터 다시 해서(로컬 dev 컨테이너와 포트가 겹치지 않게 임시로 8001/3001에), `.env` 채우고
+`docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build` → `migrate` →
+`createsuperuser`까지 배포 가이드 그대로 밟아보며 검증하던 중, 코드 검토만으로는 못 찾았을 문제
+2개를 실제로 겪으며 발견함:
+
+1. **서버 컴포넌트(SSR) fetch가 배포 환경에서 타임아웃남**: 홈 화면(`/`)처럼 서버 컴포넌트가
+   `apiFetchPublic`으로 데이터를 가져오는 페이지들이 컨테이너 안에서 `NEXT_PUBLIC_API_BASE_URL`
+   (배포 시엔 EC2 퍼블릭 IP)로 접속을 시도하는데, 이러면 컨테이너가 자기 자신의 퍼블릭 IP로 나갔다가
+   다시 들어와야 하는 왕복(hairpin NAT)이 필요해지고, 이게 안 되는 네트워크 환경이면(실제로 로컬
+   재현 환경에서 그랬음) 그냥 타임아웃 나서 500 에러. `apiFetchPublic`은 서버 컴포넌트뿐 아니라
+   `cart/page.tsx`(클라이언트 컴포넌트)에서도 쓰이고 있어서, 무작정 내부망 주소로 바꿔버리면
+   브라우저 쪽 호출이 깨짐 — `typeof window === "undefined"`로 실행 환경을 구분해서, 서버에서
+   실행 중일 때만 `INTERNAL_API_BASE_URL`(기본값 `http://backend:8000`, 도커 서비스 이름)을 쓰도록
+   `frontend/lib/api.ts` 수정. 이 값은 `NEXT_PUBLIC_*`과 달리 빌드가 아니라 요청 처리 시점에 Node
+   서버가 읽는 값이라 `docker-compose.prod.yml`의 `build.args`가 아니라 `environment:`에 넣음.
+2. **`backend`라는 이름 자체가 `ALLOWED_HOSTS`에 없었음**: 1번을 고치고 나니, 프론트가 이제
+   `http://backend:8000`으로 붙는데 이 요청의 Host 헤더가 "backend"라서 Django가 400으로 거부함
+   — 사용자가 `.env`의 `ALLOWED_HOSTS`에 무엇을 넣든 "backend"라는 값은 거기 없을 테니까. "backend"는
+   도커 내부망 밖에서는 그 이름으로 접속할 방법 자체가 없어서 무조건 허용해도 안전하다고 판단,
+   `ALLOWED_HOSTS`에 사용자 설정과 무관하게 항상 포함되도록 `settings.py`에 고정 추가.
+
+두 문제 다 로컬에서 겉으로 보기엔 멀쩡했던 이유는, 로컬 개발에서는 프론트가 `npm run dev`로 컨테이너
+밖(호스트)에서 돌기 때문에 애초에 이 "컨테이너 안에서 컨테이너 밖 주소로 나갔다 들어오는" 상황
+자체가 생기지 않아서였음 — 즉 "로컬에서 계속 잘 되던 게 왜 배포 시엔 새로 문제가 생기지" 하는
+전형적인 사례. 코드만 읽어서는 발견하기 어려웠고, 실제로 배포 구성 그대로 띄워봐야만 드러나는
+종류의 문제라 "완전히 새로 클론해서 끝까지 띄워보는" 이 검증 단계 자체가 값어치를 함. 수정 후
+같은 방식으로(새 클론 → `.env` → 두 파일 오버레이 → `migrate` → `createsuperuser`) 처음부터 다시
+띄워서, 홈/상품 상세/크리에이터 프로필/장바구니 페이지가 전부 200으로 뜨는 것, 실제 로그인
+(CORS + CSRF + 세션 쿠키가 전부 맞물려 동작)까지 되는 것을 확인.
+
+**곁가지 — Docker Desktop 불안정의 진짜 원인 발견**: 이 검증 도중 Docker Desktop이 계속 멈추고
+"read-only file system" 에러가 나서 알고 보니 **C 드라이브 용량이 완전히 꽉 차 있었음**(여유 공간
+약 1GB). 이번 세션 내내 반복됐던 Docker 관련 불안정 증상들의 진짜 원인이었을 가능성이 높음. 사용자
+확인 후 다운로드 폴더의 이미 설치 끝난 설치 파일들(Oracle XE, Flutter SDK, Android Studio, Anaconda,
+Docker Desktop 설치본, Eclipse 등 총 9.16GB)을 삭제해서 여유 공간 확보, npm 캐시도 정리. Docker
+자체도 이번 검증 과정에서 쌓인 빌드 캐시·이미지를 정리(`docker builder prune`, `docker image
+prune`)해서 추가로 5GB 이상 회수.

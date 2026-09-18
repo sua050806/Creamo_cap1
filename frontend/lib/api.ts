@@ -1,5 +1,18 @@
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 
+// apiFetchPublic은 서버 컴포넌트(SSR)와 클라이언트 컴포넌트 양쪽에서 다 쓰인다(예: cart/page.tsx는
+// "use client"인데도 apiFetchPublic을 씀). 브라우저에서는 공인 주소(API_BASE_URL)로 나가야 하지만,
+// 서버(Node.js) 쪽에서 실행 중일 때 굳이 공인 주소로 나가면 배포 환경(같은 EC2 한 대에 프론트·백엔드를
+// 같이 띄우는 구조)에서 컨테이너가 자기 자신의 퍼블릭 IP로 나갔다가 다시 들어오는 왕복(hairpin NAT)이
+// 필요해지는데, 이게 네트워크 설정에 따라 아예 막혀 있거나 느릴 수 있다(실제로 로컬에서 배포를
+// 흉내 내 검증하다가 SSR 쪽 fetch가 타임아웃 나는 걸 발견함) → ADR-040 참고. 서버 쪽에서는 도커
+// 내부망 주소(INTERNAL_API_BASE_URL, 기본은 docker-compose의 서비스 이름 http://backend:8000)로
+// 바로 붙게 한다. 로컬 개발(프론트가 컨테이너 밖의 npm run dev로 도는 환경)에서는 이 환경변수가
+// 없으므로 API_BASE_URL로 자연히 대체된다.
+function resolveServerSideBaseUrl() {
+  return process.env.INTERNAL_API_BASE_URL || API_BASE_URL;
+}
+
 export class ApiError extends Error {
   status: number;
 
@@ -67,10 +80,12 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}): Prom
   return body as T;
 }
 
-// 서버 컴포넌트에서 로그인 여부와 무관한 공개 GET 데이터를 가져올 때 쓰는 얇은 헬퍼.
-// document.cookie를 쓰지 않아 서버(Node.js) 환경에서도 안전하다.
+// 서버 컴포넌트·클라이언트 컴포넌트 양쪽에서 로그인 여부와 무관한 공개 GET 데이터를 가져올 때 쓰는
+// 얇은 헬퍼. document.cookie를 쓰지 않아 서버(Node.js) 환경에서도 안전하다. 어느 쪽에서 실행되는지는
+// typeof window로 판별 — 브라우저에서는 공인 주소, 서버에서는 내부망 주소를 쓴다(위 설명 참고).
 export async function apiFetchPublic<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_BASE_URL}${path}`, { cache: "no-store" });
+  const baseUrl = typeof window === "undefined" ? resolveServerSideBaseUrl() : API_BASE_URL;
+  const res = await fetch(`${baseUrl}${path}`, { cache: "no-store" });
   if (!res.ok) throw new ApiError(`${res.status} ${res.statusText}`, res.status);
   return res.json() as Promise<T>;
 }

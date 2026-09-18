@@ -33,6 +33,14 @@ SECRET_KEY = os.environ.get(
 DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 
 ALLOWED_HOSTS = [h.strip() for h in os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',') if h.strip()]
+# 배포 시 프론트 컨테이너가 서버 컴포넌트(SSR) fetch에서 도커 내부망 주소(http://backend:8000,
+# docker-compose.prod.yml의 INTERNAL_API_BASE_URL)로 접속하면 요청의 Host 헤더가 "backend"가
+# 되는데, 이 값은 사용자가 .env의 ALLOWED_HOSTS에 뭘 넣든 상관없이 항상 허용돼야 한다 — 실제로
+# 로컬에서 배포 환경을 흉내 내 검증하다가 이 이름이 빠져서 서버 컴포넌트 쪽 요청만 400으로 막히는
+# 걸 발견함(ADR-040 참고). "backend"는 도커 내부망 밖에서는 애초에 그 이름으로 접속할 방법이 없어서
+# 무조건 허용해도 보안상 문제없다.
+if 'backend' not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append('backend')
 
 
 # Application definition
