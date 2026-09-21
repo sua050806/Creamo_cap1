@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import Script from "next/script";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -40,7 +40,25 @@ interface CheckoutItem {
 // "바로구매"에서 왔으면 ?product_id=&quantity=&option=&creator= 로 단일 상품 정보를 받는다.
 // 여기서는 주문(POST /orders)만 생성하고, 실제 결제(포트원 SDK)는 기존처럼 /orders/{id}에서 진행 —
 // 결제 재시도 등 기존 흐름을 그대로 재사용하기 위해 일부러 합치지 않음.
+//
+// useSearchParams()를 쓰는 컴포넌트는 Suspense로 감싸야 한다 — 로컬 `npm run dev`에서는 안 잡히고
+// 배포 때 `npm run build`(정적 프리렌더링)에서만 걸리는 에러라(로컬은 매번 서버에서 즉석 렌더링만
+// 하고 정적 페이지를 미리 만들어보지 않음), 배포하다가 빌드 자체가 실패하고서야 발견함.
 export default function CheckoutPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="flex-1 px-6 py-12">
+          <p className="text-sm text-foreground/40">불러오는 중...</p>
+        </main>
+      }
+    >
+      <CheckoutContent />
+    </Suspense>
+  );
+}
+
+function CheckoutContent() {
   const { user, isLoading } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
