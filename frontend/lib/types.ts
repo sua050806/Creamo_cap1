@@ -136,8 +136,8 @@ export interface PaginatedResponse<T> {
 // 관리자 콘솔 전용 타입. docs/api-spec.md '관리자' 절 참고.
 
 export interface AdminApplication {
-  // 벤더는 로그인 계정이 없어 신청 심사 대상이 아니므로(ADR-028) 항상 "creator"만 온다.
-  type: "creator";
+  // 벤더도 본인 계정으로 가입·신청하면서(ADR-043) "vendor"도 올 수 있게 됨.
+  type: "creator" | "vendor";
   id: number;
   name: string;
   detail: string;
@@ -150,17 +150,37 @@ export interface AdminVendor {
   business_no: string;
   contact: string;
   settlement_account: string;
-  status: "active" | "suspended";
+  // pending/rejected는 벤더 본인이 가입·신청한 경우에만 나온다(ADR-043) — 관리자가 대신 등록한
+  // 레거시 벤더는 항상 active로 시작해서 이 두 상태를 거치지 않는다.
+  status: "pending" | "active" | "suspended" | "rejected";
 }
 
 export interface AdminUser {
   id: number;
   email: string;
   name: string;
-  role: "buyer" | "creator" | "admin";
+  role: "buyer" | "creator" | "vendor" | "admin";
   date_joined: string;
   creator_handle: string | null;
   creator_status: string | null;
+}
+
+// 벤더 본인 대시보드에서 쓰는 상품 타입 — AdminProduct와 달리 vendor_id/vendor_name이 없다(본인
+// 소유로만 스코프되므로 굳이 안 보여줌).
+export interface VendorProduct {
+  id: number;
+  category_id: number;
+  category_name: string;
+  name: string;
+  short_description: string;
+  description: string;
+  price: number;
+  commission_rate: string;
+  thumbnail: string | null;
+  options: Record<string, string[]>;
+  stock: Record<string, number>;
+  status: string;
+  created_at: string;
 }
 
 export interface AdminProduct {

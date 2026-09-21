@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
-from catalog.models import Category
+from catalog.models import Category, Product
+from vendors.models import VendorProfile
 
 from .models import CreatorProfile, User
 from .verification import is_email_verified
@@ -20,8 +21,8 @@ class SignupSerializer(serializers.ModelSerializer):
         fields = ["email", "password", "name", "role"]
 
     def validate_role(self, value):
-        if value not in (User.Role.BUYER, User.Role.CREATOR):
-            raise serializers.ValidationError("가입 시 선택할 수 있는 역할은 구매자 또는 크리에이터입니다.")
+        if value not in (User.Role.BUYER, User.Role.CREATOR, User.Role.VENDOR):
+            raise serializers.ValidationError("가입 시 선택할 수 있는 역할은 구매자, 크리에이터, 벤더입니다.")
         return value
 
     def validate_email(self, value):
@@ -60,6 +61,55 @@ class CreatorPublicSerializer(serializers.ModelSerializer):
 class CreatorDetailSerializer(CreatorPublicSerializer):
     class Meta(CreatorPublicSerializer.Meta):
         fields = CreatorPublicSerializer.Meta.fields + ["intro"]
+
+
+class VendorProfileSerializer(serializers.ModelSerializer):
+    # 벤더 본인이 신청서를 작성할 때 쓰는 시리얼라이저 — status/user는 뷰에서 직접 지정하므로
+    # 여기서는 입력받지 않는다(크리에이터 CreatorProfileSerializer와 같은 패턴).
+    class Meta:
+        model = VendorProfile
+        fields = ["id", "name", "business_no", "contact", "settlement_account", "status"]
+        read_only_fields = ["status"]
+
+
+class VendorProductSerializer(serializers.ModelSerializer):
+    # 관리자용 AdminProductSerializer와 달리 vendor_id를 입력받지 않는다 — 벤더 본인 상품만
+    # 다루므로 요청자의 vendor_profile로 뷰에서 강제 지정(임의의 벤더로 등록하는 걸 막기 위함).
+    category_id = serializers.PrimaryKeyRelatedField(source="category", queryset=Category.objects.all())
+    category_name = serializers.CharField(source="category.name", read_only=True)
+
+    class Meta:
+        model = Product
+        fields = [
+            "id",
+            "category_id",
+            "category_name",
+            "name",
+            "short_description",
+            "description",
+            "price",
+            "commission_rate",
+            "thumbnail",
+            "options",
+            "stock",
+            "status",
+            "created_at",
+        ]
+        read_only_fields = ["status", "created_at"]
+        extra_kwargs = {"thumbnail": {"required": False}}
+
+    def validate_options(self, value):
+        # AdminProductSerializer.validate_options와 같은 이유의 방어 — 옵션명/값 자리를 헷갈려서
+        # 잘못된 모양({"블랙": 0} 등)으로 저장되면 상품 상세 페이지가 깨짐.
+        if not isinstance(value, dict):
+            raise serializers.ValidationError("옵션은 객체(JSON) 형태여야 합니다. 예: {\"색상\": [\"블랙\", \"화이트\"]}")
+        for option_name, values in value.items():
+            if not isinstance(values, list) or not all(isinstance(v, str) for v in values):
+                raise serializers.ValidationError(
+                    f'"{option_name}"의 값은 문자열 배열이어야 합니다. 예: {{"색상": ["블랙", "화이트"]}}'
+                    " (옵션이 없는 상품이면 그냥 {} 로 둡니다)"
+                )
+        return value
 
 
 class CreatorRecommendationProductSerializer(serializers.Serializer):

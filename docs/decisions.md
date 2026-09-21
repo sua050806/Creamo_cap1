@@ -828,3 +828,51 @@ prune`)해서 추가로 5GB 이상 회수.
 
 **검증**: `curl`로 상태를 `inactive`로 바꾼 뒤 `GET /products` 목록에서 실제로 빠지는 것, 다시
 `selling`으로 되돌리는 것까지 확인. 프론트 타입체크·전체 페이지 스모크 테스트 통과.
+
+## ADR-043: 벤더도 본인 계정으로 가입·신청·상품 관리 (2026-09-21)
+**상태**: 확정
+
+"크리에이터·구매자처럼 벤더사도 계정을 만들어야 한다"는 요청으로 진행. 교수님 제출 기한(이틀)이
+있어서 설계를 먼저 짧게 합의(범위: 상품 관리 + 본인 정산 조회, 가입 방식: 본인 신청 → 관리자 승인,
+기존 벤더: 전부 계정 생성해 연결)한 뒤 바로 구현.
+
+**되돌린 결정들**: 벤더는 원래 로그인 계정이 없는 구조로 설계돼 있었음(스펙 2.3, ADR-028에서 "신청
+심사" 대상에서도 제외, ADR-030에서 `VendorProfile.status`를 승인대기/승인/반려에서 활성/판매중단
+2개로 축소). 이번 요청으로 이 결정들을 상당 부분 되돌림:
+- `User.Role`에 `vendor` 추가, `VendorProfile.user`(nullable OneToOne) 신설 — 관리자가 대신 등록한
+  레거시 벤더는 계정 연결 전까지 `user`가 비어있음.
+- `VendorProfile.status`에 `pending`/`rejected`를 다시 추가(4개: pending/active/suspended/rejected).
+  본인 계정으로 신청한 벤더는 `pending`으로 시작해 크리에이터와 같은 승인 흐름을 거치고, 관리자가
+  대신 등록하는 레거시 벤더는 여전히 승인 절차 없이 바로 `active`(뷰에서 직접 지정, 모델 기본값과
+  무관).
+- `GET/POST /admin/applications`(신청 심사)에 벤더도 다시 포함 — 단 `user`가 있는(본인이 실제로
+  신청한) VendorProfile만, 레거시 벤더는 "신청"한 적이 없으므로 제외.
+
+**새 API**: `POST /vendor/profile`(신청, `CreatorProfileCreateView`와 같은 패턴), `GET/POST
+/vendor/products` + `PATCH .../{id}` + `PATCH .../{id}/status`(본인 상품만 스코프, `IsApprovedVendor`
+권한 — `AdminProductsView` 계열과 같은 시리얼라이저 필드에서 `vendor_id`만 빼고 서버가 강제 지정),
+`GET /vendor/settlements`(`adminconsole.AdminSettlementSerializer` 재사용, `target_type=vendor &
+target_id=본인`으로 필터). 프론트는 `/vendor/apply`, `/vendor/dashboard`를 크리에이터 쪽
+(`/creator/apply`, `/creator/dashboard`)과 같은 구조로 신설, 회원가입 폼에 "벤더" 선택지 추가.
+
+**기존 벤더 마이그레이션**: 이미 등록된 벤더 3곳은 실제 이메일이 없는 데이터(회사명·연락처만 존재)라
+자동으로 진짜 이메일을 알아낼 방법이 없음 — `backfill_vendor_accounts` 관리 명령으로
+`vendor{id}@creamo.local` / 고정 비밀번호(`vendor1234`) 형태의 데모용 계정을 일괄 생성해 연결하는
+방식으로 처리. 실제 서비스라면 벤더에게 이메일로 초대 링크를 보내는 식이어야 하지만, 캡스톤 발표
+시연 목적으로는 이 방식이 충분하다고 판단.
+
+**구현 중 발견한 버그**: `GET /admin/applications`가 크리에이터·벤더를 한 배열로 합쳐서 내려주는데,
+프론트(`applications-tab.tsx`)가 `key={app.id}`만 쓰고 있어서 크리에이터 3번과 벤더 3번처럼 `type`이
+다른데 `id`가 겹치는 경우 React key 충돌이 났고, 승인/반려 처리 시 로컬 상태 갱신도 `id`만으로
+매칭해서 **엉뚱한 행이 같이 바뀌는** 문제가 있었음(실제로 브라우저에서 재현해서 발견 — curl로
+백엔드만 테스트할 땐 안 드러나는 종류의 버그). `key`와 매칭 로직 모두 `type`+`id` 조합으로 수정.
+
+**한계**: 벤더 공개 프로필 페이지(`GET /vendors/{id}` 같은, 크리에이터의 `GET /creators/{id}`에
+대응)는 이번 스코프에 안 넣음 — ADR-023에서 제안됐던 것 그대로 구현 보류 상태 유지. 이번에 만든 건
+로그인한 벤더 "본인" 전용 API들뿐.
+
+**검증**: 신규 가입 → 신청(pending, 상품/정산 API 403 확인) → 관리자 승인(active) → 상품 등록/상태
+변경/정산 조회까지 curl로 전 과정 확인. 다른 벤더 상품 접근 시도가 404로 막히는 것도 확인. 레거시
+벤더 3곳 백필 스크립트 실행 → 로그인 → 기존 상품 조회까지 확인. 브라우저(Playwright)로 관리자
+콘솔의 "신청 심사"·"회원 관리" 탭을 실제로 클릭하며 콘솔 에러 확인 — 이 과정에서 위 React key 버그를
+발견해서 같이 수정. 프론트 타입체크·전체 페이지 스모크 테스트(신설 페이지 2개 포함) 통과.

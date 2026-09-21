@@ -88,11 +88,12 @@ class AdminUserRoleView(APIView):
 
 
 class AdminApplicationsView(APIView):
-    """크리에이터 신규 가입 신청 심사. api-spec.md '관리자' 절 참고.
+    """크리에이터·벤더 신규 가입 신청 심사. api-spec.md '관리자' 절 참고.
 
-    벤더는 여기 포함하지 않는다 — 벤더는 로그인 계정이 없어(스펙 2.3) 본인이 신청서를 내는 게 아니라
-    관리자가 오프라인으로 받은 정보를 직접 입력해서 만드는 대상이라, "심사할 신청" 자체가 존재하지
-    않는다(관리자가 등록하기로 결정한 시점에 이미 승인된 것과 같음) → ADR-028 참고."""
+    벤더는 원래 로그인 계정이 없어(스펙 2.3) "심사할 신청" 개념 자체가 없다고 보고 여기서 뺐었는데
+    (ADR-028), 벤더도 본인 계정으로 가입·신청하게 되면서(ADR-043) 다시 필요해짐. 단, 관리자가 예전
+    방식대로 대신 등록한 레거시 벤더(user 없음)는 애초에 "신청"한 적이 없으므로 여기 목록에 안 나옴
+    (VendorProfile.objects.filter(user__isnull=False)로 구분)."""
 
     permission_classes = [IsAdmin]
 
@@ -106,24 +107,41 @@ class AdminApplicationsView(APIView):
                 "status": profile.get_status_display(),
             }
             for profile in CreatorProfile.objects.select_related("user", "category").order_by("-applied_at")
+        ] + [
+            {
+                "type": "vendor",
+                "id": profile.id,
+                "name": f"{profile.user.name} ({profile.name})",
+                "detail": profile.business_no,
+                "status": profile.get_status_display(),
+            }
+            for profile in VendorProfile.objects.filter(user__isnull=False)
+            .select_related("user")
+            .order_by("-applied_at")
         ]
         return Response(applications)
 
     def post(self, request):
         app_id = request.data.get("id")
+        app_type = request.data.get("type", "creator")
         decision = request.data.get("decision")
 
         if decision not in ("approve", "reject"):
             raise ValidationError({"decision": "decision은 approve 또는 reject여야 합니다."})
+        if app_type not in ("creator", "vendor"):
+            raise ValidationError({"type": "type은 creator 또는 vendor여야 합니다."})
+
+        model = CreatorProfile if app_type == "creator" else VendorProfile
+        label = "크리에이터" if app_type == "creator" else "벤더"
+        approved_value = model.Status.APPROVED if app_type == "creator" else model.Status.ACTIVE
+        rejected_value = model.Status.REJECTED
 
         try:
-            profile = CreatorProfile.objects.get(id=app_id)
-        except CreatorProfile.DoesNotExist:
-            return Response({"error": "크리에이터 신청을 찾을 수 없습니다."}, status=http_status.HTTP_404_NOT_FOUND)
+            profile = model.objects.get(id=app_id)
+        except model.DoesNotExist:
+            return Response({"error": f"{label} 신청을 찾을 수 없습니다."}, status=http_status.HTTP_404_NOT_FOUND)
 
-        profile.status = (
-            CreatorProfile.Status.APPROVED if decision == "approve" else CreatorProfile.Status.REJECTED
-        )
+        profile.status = approved_value if decision == "approve" else rejected_value
         if decision == "approve":
             profile.approved_at = timezone.now()
         profile.save()

@@ -10,3 +10,15 @@ class IsApprovedCreator(BasePermission):
             return False
         profile = getattr(user, "creator_profile", None)
         return bool(profile and profile.status == profile.Status.APPROVED)
+
+
+class IsApprovedVendor(BasePermission):
+    """벤더 대시보드 전용 권한 — role=vendor이고 VendorProfile.status=active인 본인만 통과
+    (IsApprovedCreator와 같은 패턴, ADR-043)."""
+
+    def has_permission(self, request, view):
+        user = request.user
+        if not (user and user.is_authenticated and user.role == user.Role.VENDOR):
+            return False
+        profile = getattr(user, "vendor_profile", None)
+        return bool(profile and profile.status == profile.Status.ACTIVE)

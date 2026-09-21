@@ -9,6 +9,7 @@
 ```mermaid
 erDiagram
     User ||--o| CreatorProfile : "1:1 (role=creator일 때)"
+    User ||--o| VendorProfile : "1:1 (role=vendor일 때, nullable — 레거시 벤더는 계정 연결 전까지 없음)"
     User ||--o{ Order : "구매"
     User ||--o| Cart : "1:1 보유"
     VendorProfile ||--o{ Product : "공급"
@@ -29,7 +30,7 @@ erDiagram
         int id PK
         string email UK
         string name
-        string role "buyer/creator/admin"
+        string role "buyer/creator/vendor/admin (vendor는 ADR-043)"
         datetime created_at
     }
     CreatorProfile {
@@ -45,11 +46,14 @@ erDiagram
     }
     VendorProfile {
         int id PK
+        int user_id FK "nullable — 관리자가 대신 등록한 레거시 벤더는 계정 연결 전까지 비어있음(ADR-043)"
         string name
         string business_no
         string contact
         string settlement_account
-        string status "active/suspended — 신청 심사용이 아니라 판매 활성/중단 토글(ADR-028, ADR-030)"
+        string status "pending/active/suspended/rejected — pending/rejected는 벤더 본인 신청 심사용(ADR-043으로 부활), active/suspended는 판매 활성/중단 토글(ADR-028, ADR-030)"
+        datetime applied_at "nullable — 관리자가 대신 등록한 벤더는 신청한 적이 없어 비어있음"
+        datetime approved_at "nullable"
     }
     Category {
         int id PK
@@ -153,18 +157,25 @@ ADR-008 참고. 크리에이터의 관심 분야를 상품 카테고리 체계�
 크리에이터" 같은 필터링을 일관되게 할 수 있다.
 
 ### VendorProfile
-User와 연결되는 FK가 없는 독립 테이블 (스펙 2.3: 벤더는 시스템 로그인 계정이 없음). 관리자만 CRUD한다.
+원래는 User와 연결되는 FK가 없는 독립 테이블이었다(스펙 2.3: 벤더는 시스템 로그인 계정이 없음,
+관리자만 CRUD). 벤더도 본인 계정으로 가입·신청해서 상품·정산을 직접 관리하게 되면서(ADR-043)
+`user`(nullable OneToOne) FK가 추가됨 — 관리자가 예전처럼 대신 등록한 레거시 벤더는 계정이 연결되기
+전까지 `user`가 비어있다(`python manage.py backfill_vendor_accounts`로 일괄 연결 가능).
 
-`status`는 처음엔 CreatorProfile과 같은 승인대기/승인/반려 choices를 그대로 가져다 썼지만,
-**"신청 심사" 대상이 아니라는 게 밝혀지면서**(벤더는 스스로 신청서를 내는 주체가 아니라 관리자가
-오프라인으로 받은 정보를 직접 등록하는 대상이라, 등록 시점에 이미 승인된 것과 같음) → [decisions.md]
-(decisions.md) ADR-028 참고, `active`(활성)/`suspended`(판매중단) 2개 값으로 바꿔서 **"이 벤더의
-상품을 통째로 판매 중단"하는 토글**로 재정의함 → ADR-030 참고. 기본값도 `active`로 바꿔서 벤더를
-등록하는 즉시 상품이 정상 노출된다. `suspended`로 바꾸면 `ProductListView`/`ProductDetailView`/
-`CreatorProductsView`가 조회 시점에 걸러내서 이 벤더의 상품이 카탈로그·상세·크리에이터 추천 어디서도
-안 보이게 된다(개별 `Product.status`는 그대로 유지 — 되돌리면 원래 상태 그대로 복원).
-`GET/POST /admin/applications`(신청 심사)는 크리에이터만 다루고, 벤더 목록·상태 변경은
-`GET /admin/vendors`, `PATCH /admin/vendors/{id}/status`(관리자 콘솔 "회원 관리" 탭)에서 확인·조작한다.
+`status`는 처음엔 CreatorProfile과 같은 승인대기/승인/반려 choices였다가, "신청 심사" 대상이 아니라는
+게 밝혀지면서(벤더는 스스로 신청서를 내는 주체가 아니었음) `active`(활성)/`suspended`(판매중단) 2개
+값으로 바꿔서 **"이 벤더의 상품을 통째로 판매 중단"하는 토글**로 재정의했었다(ADR-028, ADR-030).
+이후 벤더도 본인 계정으로 가입·신청하게 되면서 `pending`(승인대기)/`rejected`(반려)를 다시 추가함
+(ADR-043) — 자기 계정으로 신청한 벤더는 크리에이터와 똑같이 승인 절차를 거치고, 관리자가 대신
+등록하는 레거시 벤더는 여전히 신청 절차 없이 바로 `active`로 시작(뷰에서 직접 지정). `active`/
+`suspended`의 "판매 중단 토글" 의미는 그대로 유지 — `suspended`면 `ProductListView`/
+`ProductDetailView`/`CreatorProductsView`가 조회 시점에 걸러내서 이 벤더의 상품이 카탈로그·상세·
+크리에이터 추천 어디서도 안 보이게 된다(개별 `Product.status`는 그대로 유지 — 되돌리면 원래 상태
+그대로 복원).
+
+`GET/POST /admin/applications`(신청 심사)는 이제 크리에이터·벤더 둘 다 다룬다(자기 계정으로 신청한
+것만 — 레거시 벤더는 제외). 벤더 전체 목록(레거시 포함)·활성/판매중단 토글은 여전히
+`GET /admin/vendors`, `PATCH /admin/vendors/{id}/status`(관리자 콘솔 "회원 관리" 탭)에서.
 
 **(제안, 구현 보류)** 벤더 프로필 공개 페이지를 만들게 되면 `intro`(소개) 필드를 추가해야 함 —
 지금은 `CreatorProfile.intro`에 해당하는 필드가 없음 → [decisions.md](decisions.md) ADR-023 참고.

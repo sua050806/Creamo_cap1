@@ -6,6 +6,9 @@ class User(AbstractUser):
     class Role(models.TextChoices):
         BUYER = "buyer", "구매자"
         CREATOR = "creator", "크리에이터"
+        # 원래 벤더는 로그인 계정이 없이 관리자가 대신 등록하는 구조였음(ADR-028) — 벤더도 본인
+        # 계정으로 로그인해서 상품·정산을 직접 관리하게 해달라는 요청으로 추가(ADR-043 참고).
+        VENDOR = "vendor", "벤더"
         ADMIN = "admin", "관리자"
 
     email = models.EmailField(unique=True)

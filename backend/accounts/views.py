@@ -7,13 +7,19 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from django.utils import timezone
+from rest_framework.exceptions import ValidationError
+from rest_framework.generics import ListCreateAPIView, RetrieveUpdateAPIView
+
+from adminconsole.serializers import AdminSettlementSerializer
 from catalog.models import Product
 from orders.models import OrderItem
 from recommendations.models import CreatorRecommendation
+from settlements.models import Settlement
 from vendors.models import VendorProfile
 
 from .models import CreatorProfile, User
-from .permissions import IsApprovedCreator
+from .permissions import IsApprovedCreator, IsApprovedVendor
 from .serializers import (
     CreatorDetailSerializer,
     CreatorProfileSerializer,
@@ -21,6 +27,8 @@ from .serializers import (
     CreatorRecommendationProductSerializer,
     SignupSerializer,
     UserSerializer,
+    VendorProductSerializer,
+    VendorProfileSerializer,
 )
 from .verification import VerificationError, clear_verification, send_verification_code, verify_code
 
@@ -126,6 +134,12 @@ class MeView(APIView):
                 data["creator_profile"] = {"status": profile.status, "handle": profile.handle}
             except CreatorProfile.DoesNotExist:
                 data["creator_profile"] = None
+        if request.user.role == request.user.Role.VENDOR:
+            try:
+                profile = request.user.vendor_profile
+                data["vendor_profile"] = {"status": profile.status, "name": profile.name}
+            except VendorProfile.DoesNotExist:
+                data["vendor_profile"] = None
         return Response(data)
 
 
@@ -147,6 +161,89 @@ class CreatorProfileCreateView(APIView):
         serializer.is_valid(raise_exception=True)
         serializer.save(user=request.user)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+class VendorProfileCreateView(APIView):
+    """벤더 본인이 사업자 정보를 제출 — CreatorProfileCreateView와 같은 패턴(ADR-043). 제출 시점엔
+    승인대기(pending)로 시작하고, 관리자가 신청 심사 화면에서 승인해야 실제로 상품을 등록할 수 있다
+    (IsApprovedVendor가 active만 통과시킴)."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        if request.user.role != request.user.Role.VENDOR:
+            return Response(
+                {"error": "벤더로 가입한 계정만 신청서를 작성할 수 있습니다."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        if VendorProfile.objects.filter(user=request.user).exists():
+            return Response(
+                {"error": "이미 벤더 신청 내역이 있습니다."}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+        serializer = VendorProfileSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save(user=request.user, status=VendorProfile.Status.PENDING, applied_at=timezone.now())
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+class VendorProductsView(ListCreateAPIView):
+    """로그인한 본인 벤더가 공급하는 상품 목록·등록. 원래는 관리자가 오프라인으로 받은 정보를 대신
+    등록했는데(AdminProductsView), 벤더도 본인 계정으로 직접 등록할 수 있게 함 → ADR-043 참고."""
+
+    permission_classes = [IsApprovedVendor]
+    serializer_class = VendorProductSerializer
+
+    def get_queryset(self):
+        return Product.objects.filter(vendor=self.request.user.vendor_profile).select_related("category")
+
+    def perform_create(self, serializer):
+        serializer.save(vendor=self.request.user.vendor_profile)
+
+
+class VendorProductDetailView(RetrieveUpdateAPIView):
+    """본인 상품 수정 — 다른 벤더의 상품은 queryset에 아예 안 걸려서 404(AdminProductDetailView와
+    달리 본인 소유로 스코프를 좁힘)."""
+
+    permission_classes = [IsApprovedVendor]
+    serializer_class = VendorProductSerializer
+
+    def get_queryset(self):
+        return Product.objects.filter(vendor=self.request.user.vendor_profile)
+
+
+class VendorProductStatusView(APIView):
+    """본인 상품 판매중/품절/비활성 전환 — AdminProductStatusView와 같은 패턴, 본인 소유로 스코프."""
+
+    permission_classes = [IsApprovedVendor]
+
+    def patch(self, request, pk):
+        product = Product.objects.filter(id=pk, vendor=request.user.vendor_profile).first()
+        if product is None:
+            return Response({"error": "상품을 찾을 수 없습니다."}, status=status.HTTP_404_NOT_FOUND)
+
+        new_status = request.data.get("status")
+        if new_status not in Product.Status.values:
+            raise ValidationError({"status": f"status는 {Product.Status.values} 중 하나여야 합니다."})
+
+        product.status = new_status
+        product.save(update_fields=["status"])
+        return Response({"id": product.id, "status": product.status})
+
+
+class VendorSettlementsView(APIView):
+    """본인(벤더) 정산 내역 조회 — CreatorDashboardStatsView와 대응되는 벤더 쪽 대시보드 화면용."""
+
+    permission_classes = [IsApprovedVendor]
+
+    def get(self, request):
+        # adminconsole.serializers를 재사용 — 관리자용과 정확히 같은 모양(target_name 등)이라
+        # 벤더 전용으로 따로 만들 이유가 없음. target_id로 비교하므로(GenericForeignKey 미사용,
+        # Settlement.models 참고) 다른 벤더/크리에이터 정산이 섞여 들어올 일은 없다.
+        settlements = Settlement.objects.filter(
+            target_type=Settlement.TargetType.VENDOR, target_id=request.user.vendor_profile.id
+        ).order_by("-period_end")
+        return Response(AdminSettlementSerializer(settlements, many=True).data)
 
 
 class CreatorListView(ListAPIView):

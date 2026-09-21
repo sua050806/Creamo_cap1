@@ -17,6 +17,7 @@ type FilterKey = (typeof FILTERS)[number]["key"];
 const ROLE_OPTIONS: { value: AdminUser["role"]; label: string }[] = [
   { value: "buyer", label: "일반 회원" },
   { value: "creator", label: "크리에이터" },
+  { value: "vendor", label: "벤더" },
   { value: "admin", label: "관리자" },
 ];
 
@@ -27,8 +28,10 @@ const CREATOR_STATUS_LABEL: Record<string, string> = {
 };
 
 const VENDOR_STATUS_LABEL: Record<AdminVendor["status"], string> = {
+  pending: "승인대기",
   active: "활성",
   suspended: "판매중단",
+  rejected: "반려",
 };
 
 const PRODUCT_STATUS_LABEL: Record<string, string> = {
@@ -111,16 +114,18 @@ export default function MembersTab() {
                         {v.business_no} · {v.contact} · {v.settlement_account}
                       </p>
                     </div>
-                    <button
-                      onClick={() => toggleVendorStatus(v)}
-                      className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
-                        v.status === "active"
-                          ? "bg-black/5 text-foreground/60 hover:bg-black/10"
-                          : "bg-brand text-brand-foreground hover:opacity-90"
-                      }`}
-                    >
-                      {v.status === "active" ? "판매 중단" : "판매 재개"}
-                    </button>
+                    {(v.status === "active" || v.status === "suspended") && (
+                      <button
+                        onClick={() => toggleVendorStatus(v)}
+                        className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                          v.status === "active"
+                            ? "bg-black/5 text-foreground/60 hover:bg-black/10"
+                            : "bg-brand text-brand-foreground hover:opacity-90"
+                        }`}
+                      >
+                        {v.status === "active" ? "판매 중단" : "판매 재개"}
+                      </button>
+                    )}
                   </div>
 
                   <div className="p-5">

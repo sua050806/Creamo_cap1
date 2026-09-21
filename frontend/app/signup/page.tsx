@@ -19,7 +19,7 @@ interface SignupResponse {
   id: number;
   email: string;
   name: string;
-  role: "buyer" | "creator";
+  role: "buyer" | "creator" | "vendor";
 }
 
 // 회원가입 페이지 (buyer/creator 선택). 스펙 7번 페이지 목록엔 없었지만 2.1/2.2 가입 흐름에 필요해 추가.
@@ -33,7 +33,7 @@ export default function SignupPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
-  const [role, setRole] = useState<"buyer" | "creator">("buyer");
+  const [role, setRole] = useState<"buyer" | "creator" | "vendor">("buyer");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<SignupResponse | null>(null);
@@ -178,6 +178,10 @@ export default function SignupPage() {
             {result.role === "creator" ? (
               <Link href="/creator/apply" className={`${buttonClass} text-center`}>
                 크리에이터 프로필 작성하러 가기
+              </Link>
+            ) : result.role === "vendor" ? (
+              <Link href="/vendor/apply" className={`${buttonClass} text-center`}>
+                벤더 신청서 작성하러 가기
               </Link>
             ) : (
               <Link href="/login" className={`${buttonClass} text-center`}>
@@ -326,6 +330,22 @@ export default function SignupPage() {
                       onChange={() => setRole("creator")}
                     />
                     크리에이터
+                  </label>
+                  <label
+                    className={`flex-1 cursor-pointer rounded-lg border px-3 py-2 text-center transition-colors ${
+                      role === "vendor"
+                        ? "border-brand bg-brand/10 text-brand"
+                        : "border-black/10 text-foreground/60"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="role"
+                      className="sr-only"
+                      checked={role === "vendor"}
+                      onChange={() => setRole("vendor")}
+                    />
+                    벤더
                   </label>
                 </div>
               </fieldset>

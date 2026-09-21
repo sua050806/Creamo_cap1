@@ -73,6 +73,14 @@ export default function Header() {
                     크리에이터 대시보드
                   </Link>
                 )}
+                {user.role === "vendor" && (
+                  <Link
+                    href="/vendor/dashboard"
+                    className="transition-colors hover:text-foreground"
+                  >
+                    벤더 대시보드
+                  </Link>
+                )}
                 <Link
                   href="/mypage"
                   className="transition-colors hover:text-foreground"

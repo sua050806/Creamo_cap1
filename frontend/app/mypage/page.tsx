@@ -14,6 +14,13 @@ const CREATOR_STATUS_LABEL: Record<string, string> = {
   rejected: "반려",
 };
 
+const VENDOR_STATUS_LABEL: Record<string, string> = {
+  pending: "승인대기",
+  active: "활성",
+  suspended: "판매중단",
+  rejected: "반려",
+};
+
 const buttonClass =
   "inline-block rounded-full bg-brand px-4 py-2.5 text-center text-sm font-medium text-brand-foreground transition-opacity hover:opacity-90";
 
@@ -178,6 +185,51 @@ export default function MyPage() {
 
           <div className="mt-4">{orderStats}</div>
           <div className="mt-4">{orderHistorySection}</div>
+        </div>
+      </main>
+    );
+  }
+
+  if (user.role === "vendor") {
+    return (
+      <main className="flex-1 px-6 py-12">
+        <div className="mx-auto max-w-2xl">
+          <h1 className="mb-6 text-2xl font-semibold">마이페이지</h1>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {accountCard}
+
+            <div className="flex flex-col gap-4 rounded-2xl border border-black/5 bg-white p-6 shadow-sm">
+              <p className="text-sm font-medium text-foreground/50">벤더 활동</p>
+              {user.vendor_profile ? (
+                <>
+                  <div className="flex items-center gap-2">
+                    <p className="font-medium">{user.vendor_profile.name}</p>
+                    <StatusTag
+                      status={
+                        VENDOR_STATUS_LABEL[user.vendor_profile.status] ?? user.vendor_profile.status
+                      }
+                    />
+                  </div>
+                  {user.vendor_profile.status === "active" ? (
+                    <Link href="/vendor/dashboard" className={buttonClass}>
+                      대시보드로 이동
+                    </Link>
+                  ) : (
+                    <p className="text-sm text-foreground/60">
+                      관리자 승인 후 대시보드를 이용할 수 있습니다.
+                    </p>
+                  )}
+                </>
+              ) : (
+                <>
+                  <p className="text-sm text-foreground/60">아직 벤더 신청서를 작성하지 않았습니다.</p>
+                  <Link href="/vendor/apply" className={buttonClass}>
+                    신청서 작성하기
+                  </Link>
+                </>
+              )}
+            </div>
+          </div>
         </div>
       </main>
     );

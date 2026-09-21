@@ -57,7 +57,7 @@
   "email": "buyer@example.com",
   "password": "********",
   "name": "홍길동",
-  "role": "buyer"          // "buyer" | "creator"
+  "role": "buyer"          // "buyer" | "creator" | "vendor" (벤더는 ADR-043에서 추가)
 }
 // response 201
 {
@@ -387,12 +387,57 @@ ADR-014 참고. 판매수·커미션 통계만으로 대시보드 핵심 기능�
 (위 `/stats`와 달리 delivered로 제한하지 않음 — 상품별로는 "얼마나 벌었는지"를 있는 그대로 보여주는
 용도).
 
-## 벤더 (제안, 구현 보류)
+## 벤더 (계정·대시보드, ADR-043)
 
-`GET /vendors/{id}`(프로필), `GET /vendors/{id}/products`(공급 상품 목록) — 크리에이터 쪽
-`GET /creators/{id}`, `GET /creators/{id}/products`와 대칭되는 벤더 전용 공개 API. 지금은 스펙 2.3대로
-벤더가 상품 상세의 배지로만 노출되고 있어 이 API들이 필요 없지만, 벤더 프로필 페이지를 만들게 되면
-추가해야 함 → [decisions.md](decisions.md) ADR-023 참고.
+벤더도 크리에이터처럼 본인 계정으로 가입·신청하고, 관리자 승인 후 본인 상품·정산을 직접 관리할 수
+있다. `GET /vendors/{id}`(공개 프로필), `GET /vendors/{id}/products`(공개 상품 목록) 같은 **공개**
+API는 아직 없음(크리에이터의 `GET /creators/{id}`와 대칭되는 것 — ADR-023에서 제안했던 것과 같은
+스코프, 구현 보류 상태 그대로) — 지금 추가된 건 **로그인한 벤더 본인** 전용 API들이다.
+
+### POST /vendor/profile
+**인증**: 로그인 필요 — role=vendor인 계정만
+```json
+// request
+{ "name": "OO상사", "business_no": "123-45-67890", "contact": "010-1234-5678",
+  "settlement_account": "신한 110-000-000000" }
+// response 201
+{ "id": 5, "name": "OO상사", "business_no": "123-45-67890", "contact": "010-1234-5678",
+  "settlement_account": "신한 110-000-000000", "status": "pending" }
+```
+크리에이터의 `POST /creator/profile`과 같은 패턴 — 제출 시점엔 `pending`(승인대기)으로 시작하고,
+관리자가 "신청 심사"에서 승인해야(`active`) 아래 상품·정산 API를 쓸 수 있다. 이미 신청 내역이 있으면
+(대기/활성/판매중단/반려 무관) 400.
+
+### GET/POST /vendor/products
+**인증**: role=vendor이고 VendorProfile.status=active인 본인만(비승인이면 403)
+```json
+// response 200 (본인 상품만, AdminProduct에서 vendor_id/vendor_name만 뺀 형태)
+[ { "id": 10, "category_id": 1, "category_name": "테크", "name": "무선 이어폰", ... } ]
+```
+관리자용 `POST /admin/products`와 달리 `vendor_id`를 입력받지 않는다 — 요청자의 벤더 프로필로 서버가
+강제 지정(임의의 벤더로 등록하는 걸 막기 위함). 그 외 옵션/재고 검증 로직은 관리자용과 동일.
+
+### PATCH /vendor/products/{id}, PATCH /vendor/products/{id}/status
+**인증**: role=vendor이고 VendorProfile.status=active인 본인만
+```json
+// PATCH .../status request { "status": "selling" | "sold_out" | "inactive" }
+```
+본인 소유가 아닌 상품 id면 404(다른 벤더 상품이 있다는 사실 자체를 노출하지 않기 위해 403이 아니라
+404) — `AdminProductStatusView`와 같은 패턴이되 조회 범위를 본인 소유로 좁힘.
+
+### GET /vendor/settlements
+**인증**: role=vendor이고 VendorProfile.status=active인 본인만
+```json
+// response 200 (AdminSettlement와 동일한 형태, target_type=vendor & target_id=본인으로 필터링)
+[ { "id": 5, "target_type": "vendor", "target_id": 1, "target_name": "OO상사", "amount": 55100,
+    "period_start": "2026-09-14", "period_end": "2026-09-17", "status": "pending", "approved_at": null } ]
+```
+
+### 기존(계정 없는) 벤더는?
+관리자가 예전 방식대로 대신 등록한 벤더는 `VendorProfile.user`가 비어있다. 로그인해서 위 API들을
+쓰게 하려면 계정을 연결해야 하는데, 실제 이메일이 없는 데이터라 자동으로 만들 수밖에 없음 —
+`python manage.py backfill_vendor_accounts` 관리 명령으로 일괄 생성(`vendor{id}@creamo.local` /
+`vendor1234`, 콘솔에 출력됨). 이미 계정이 연결된 벤더는 건너뛰므로 여러 번 실행해도 안전.
 
 ## 관리자
 
@@ -416,7 +461,7 @@ API는 원래부터 이 두 경우(진짜 크리에이터가 아님 / creator인
 **인증**: 역할: admin
 ```json
 // request
-{ "role": "creator" }  // buyer | creator | admin
+{ "role": "creator" }  // buyer | creator | vendor | admin
 // response 200
 { "id": 3, "role": "creator" }
 ```
@@ -445,29 +490,38 @@ API는 원래부터 이 두 경우(진짜 크리에이터가 아님 / creator인
 ```
 
 ### GET /admin/applications
-**인증**: 역할: admin — **크리에이터 신청만** 다룬다(벤더 제외, 아래 참고).
+**인증**: 역할: admin — 크리에이터·벤더 신청을 함께 다룬다.
 ```json
 // response 200
-[ { "type": "creator", "id": 3, "name": "홍길동 (@gil-dong)", "detail": "테크", "status": "승인대기" } ]
+[
+  { "type": "creator", "id": 3, "name": "홍길동 (@gil-dong)", "detail": "테크", "status": "승인대기" },
+  { "type": "vendor", "id": 5, "name": "김벤더 (OO상사)", "detail": "123-45-67890", "status": "활성" }
+]
 ```
-원래 문서에는 벤더도 이 통합 목록에 함께 넣는 것으로 되어 있었지만, 구현 단계에서 **벤더는 제외**하기로
-번복함 → [decisions.md](decisions.md) ADR-028 참고. 벤더는 로그인 계정이 없어(스펙 2.3) 본인이
-신청서를 내는 게 아니라 관리자가 오프라인 정보를 직접 입력해서 만드는 대상이라 "심사할 대기 중인
-신청"이 애초에 존재하지 않기 때문 — 관리자가 등록하기로 한 시점에 이미 승인과 같은 의미. 벤더 목록은
-`GET /admin/vendors`(관리자 콘솔 "회원 관리" 탭)에서 확인한다.
+원래 문서에는 벤더도 이 통합 목록에 함께 넣는 것으로 되어 있었는데, 구현 초기엔 벤더가 로그인 계정이
+없는 구조라(스펙 2.3) 제외했었다가(ADR-028), 벤더도 본인 계정으로 가입·신청하게 되면서(ADR-043)
+다시 합쳐짐. 단, 관리자가 예전처럼 대신 등록한 레거시 벤더(`VendorProfile.user`가 없음)는 "신청"한
+적이 없으므로 이 목록에 안 나온다 — 벤더 전체 목록(레거시 포함)은 `GET /admin/vendors`에서 확인.
+
+`type`이 다르면 `id`가 겹칠 수 있다(크리에이터 3번과 벤더 3번이 동시에 존재 가능) — 프론트에서 목록을
+렌더링하거나 특정 항목을 갱신할 때 반드시 `type`+`id` 조합으로 식별해야 한다(`id`만 쓰면 React key
+충돌·엉뚱한 행이 갱신되는 버그가 남, 실제로 한 번 겪음).
 
 구현하면서 `name`/`detail`/`status`로 필드도 정리함(원래 문서의 `handle`/`applied_at`을 프론트 표에
-그대로 넣을 수 있는 공통 필드로 통일). `status`는 사람이 읽는 한글 라벨(`승인대기`/`승인`/`반려`)로
-내려준다 — 프론트의 `StatusTag` 컴포넌트가 바로 쓸 수 있게 하기 위함. 신청 대기중인 것만이 아니라
-전체 이력을 내려주고, 이미 승인/반려된 항목은 프론트에서 처리 버튼을 숨긴다.
+그대로 넣을 수 있는 공통 필드로 통일). `status`는 사람이 읽는 한글 라벨로 내려준다 — 프론트의
+`StatusTag` 컴포넌트가 바로 쓸 수 있게 하기 위함. 신청 대기중인 것만이 아니라 전체 이력을 내려주고,
+승인/반려가 끝난 항목은 프론트에서 처리 버튼을 숨긴다(크리에이터는 `승인대기`/`승인`/`반려`, 벤더는
+`승인대기`/`활성`/`판매중단`/`반려` — 벤더는 승인 후 "활성" 상태로 실제 판매 중 여부까지 겸하기 때문에
+라벨이 하나 더 있음).
 
 ### POST /admin/applications
 **인증**: 역할: admin
 ```json
 // request
-{ "type": "creator", "id": 3, "decision": "approve" }  // "approve" | "reject"
+{ "type": "creator", "id": 3, "decision": "approve" }  // type: "creator" | "vendor", decision: "approve" | "reject"
 // response 200
-{ "id": 3, "status": "approved" }  // 영문 슬러그(pending/approved/rejected)
+{ "id": 3, "status": "approved" }  // 영문 슬러그 — creator는 pending/approved/rejected,
+                                    // vendor는 pending/active/suspended/rejected
 ```
 
 ### GET /admin/products

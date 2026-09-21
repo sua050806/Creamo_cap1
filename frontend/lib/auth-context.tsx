@@ -8,8 +8,9 @@ export interface CurrentUser {
   id: number;
   email: string;
   name: string;
-  role: "buyer" | "creator" | "admin";
+  role: "buyer" | "creator" | "vendor" | "admin";
   creator_profile?: { status: string; handle: string } | null;
+  vendor_profile?: { status: string; name: string } | null;
 }
 
 interface AuthContextValue {
