@@ -876,3 +876,25 @@ target_id=본인`으로 필터). 프론트는 `/vendor/apply`, `/vendor/dashboar
 벤더 3곳 백필 스크립트 실행 → 로그인 → 기존 상품 조회까지 확인. 브라우저(Playwright)로 관리자
 콘솔의 "신청 심사"·"회원 관리" 탭을 실제로 클릭하며 콘솔 에러 확인 — 이 과정에서 위 React key 버그를
 발견해서 같이 수정. 프론트 타입체크·전체 페이지 스모크 테스트(신설 페이지 2개 포함) 통과.
+
+## ADR-044: 배송 상태 변경도 벤더 본인이 (2026-09-21)
+**상태**: 확정
+
+ADR-043 직후 "벤더가 배송 관리도 해야 하는 거 아니냐"는 후속 요청. 맞는 지적이었음 — 상품준비/배송중/
+배송완료로 넘기는 `OrderItem.status` 변경이 지금까지 전부 관리자 전용(`AdminOrderItemsView`/
+`AdminOrderItemStatusView`, `admin/shipping-tab.tsx`)이었는데, 실제로 상품을 포장·발송하는 건
+벤더이므로 벤더가 직접 하는 게 맞다.
+
+`GET /vendor/order-items`, `PATCH /vendor/order-items/{id}/status` 신설 — 기존 관리자용 코드
+(`AdminOrderItemSerializer` 재사용, `admin/shipping-tab.tsx`의 `EDITABLE_STATUSES` 기준 그대로
+가져옴)를 본인 상품(`product__vendor=본인`)으로 스코프만 좁힌 것. 결제대기(pending)·취소됨(cancelled)
+상태는 관리자용과 똑같이 여기서 못 바꾼다 — 결제 확인은 `/payments/complete`, 취소는
+`/orders/{id}/cancel`을 거쳐야 재고·결제 상태와 어긋나지 않기 때문. 관리자의 기존 배송 관리 기능은
+그대로 유지(레거시 벤더처럼 계정이 없는 경우의 백업 경로로 남겨둠).
+
+프론트는 `/vendor/dashboard`에 "배송 관리" 표를 추가(상품 등록 폼과 정산 내역 사이) —
+`admin/shipping-tab.tsx`와 같은 구조.
+
+**검증**: curl로 결제대기/취소됨 항목은 400으로 막히는 것, 결제완료→상품준비 전환 성공, 다른 벤더의
+주문 항목 접근 시 404로 막히는 것까지 확인. Playwright로 벤더 계정 로그인 후 대시보드에 "배송 관리"
+섹션이 콘솔 에러 없이 뜨는 것 확인. 프론트 타입체크·전체 페이지 스모크 테스트 통과.

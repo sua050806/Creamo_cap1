@@ -433,6 +433,23 @@ API는 아직 없음(크리에이터의 `GET /creators/{id}`와 대칭되는 것
     "period_start": "2026-09-14", "period_end": "2026-09-17", "status": "pending", "approved_at": null } ]
 ```
 
+### GET /vendor/order-items, PATCH /vendor/order-items/{id}/status
+**인증**: role=vendor이고 VendorProfile.status=active인 본인만 (ADR-044)
+```json
+// GET response 200 (AdminOrderItem과 동일한 형태, 본인 상품이 포함된 주문 항목만)
+[ { "id": 29, "order_id": 21, "buyer_email": "buyer@example.com", "product_name": "무선 이어폰",
+    "creator_handle": null, "quantity": 1, "unit_price": 39000, "commission_amount": 0,
+    "status": "paid" } ]
+// PATCH request { "status": "preparing" }  // paid | preparing | shipping | delivered만 가능
+// response 200 { "id": 29, "status": "preparing" }
+```
+관리자용 `GET/PATCH /admin/order-items`와 같은 시리얼라이저를 재사용하되 본인 상품
+(`product__vendor=본인`)으로 스코프. `pending`(결제대기)·`cancelled`(취소됨) 상태인 항목은 여기서
+상태를 못 바꾼다(400) — 결제 확인은 `POST /payments/complete`, 취소는 `POST /orders/{id}/cancel`을
+거쳐야 재고·결제 상태와 어긋나지 않기 때문(`admin/shipping-tab.tsx`의 `EDITABLE_STATUSES`와 같은
+기준). 본인 상품이 아니면 404. 관리자의 기존 배송 관리 기능(`/admin/order-items`)은 그대로 유지 —
+레거시 벤더(계정 없음)의 배송 처리는 여전히 관리자가 담당.
+
 ### 기존(계정 없는) 벤더는?
 관리자가 예전 방식대로 대신 등록한 벤더는 `VendorProfile.user`가 비어있다. 로그인해서 위 API들을
 쓰게 하려면 계정을 연결해야 하는데, 실제 이메일이 없는 데이터라 자동으로 만들 수밖에 없음 —

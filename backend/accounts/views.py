@@ -11,7 +11,7 @@ from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 from rest_framework.generics import ListCreateAPIView, RetrieveUpdateAPIView
 
-from adminconsole.serializers import AdminSettlementSerializer
+from adminconsole.serializers import AdminOrderItemSerializer, AdminSettlementSerializer
 from catalog.models import Product
 from orders.models import OrderItem
 from recommendations.models import CreatorRecommendation
@@ -244,6 +244,60 @@ class VendorSettlementsView(APIView):
             target_type=Settlement.TargetType.VENDOR, target_id=request.user.vendor_profile.id
         ).order_by("-period_end")
         return Response(AdminSettlementSerializer(settlements, many=True).data)
+
+
+# 관리자가 결제 확인 직후 상태(paid)로 되돌릴 일은 거의 없지만, AdminOrderItemStatusView와 동일하게
+# 열어둔다 — 벤더가 실수로 다시 골라도 그 자체로는 실제 결제·재고와 어긋나지 않는 값이라 막을
+# 이유가 없음(막아야 하는 건 pending/cancelled뿐, ShippingTab의 EDITABLE_STATUSES와 같은 기준).
+_VENDOR_EDITABLE_STATUSES = {
+    OrderItem.Status.PAID,
+    OrderItem.Status.PREPARING,
+    OrderItem.Status.SHIPPING,
+    OrderItem.Status.DELIVERED,
+}
+
+
+class VendorOrderItemsView(APIView):
+    """본인(벤더) 상품이 포함된 주문 항목 목록 — 배송 상태를 벤더가 직접 관리하게 됨(ADR-044).
+    AdminOrderItemsView와 같은 모양이되 본인 상품으로 스코프."""
+
+    permission_classes = [IsApprovedVendor]
+
+    def get(self, request):
+        items = (
+            OrderItem.objects.filter(product__vendor=request.user.vendor_profile)
+            .select_related("order__buyer", "product", "creator")
+            .order_by("-id")
+        )
+        return Response(AdminOrderItemSerializer(items, many=True).data)
+
+
+class VendorOrderItemStatusView(APIView):
+    """본인(벤더) 상품 주문 항목의 배송 상태 변경 — AdminOrderItemStatusView와 같은 패턴, 본인
+    상품으로 스코프. pending(결제대기)/cancelled(취소됨)는 여기서 못 바꾼다(ShippingTab의
+    EDITABLE_STATUSES와 같은 이유 — 결제·취소는 각각 /payments/complete, /orders/{id}/cancel을
+    거쳐야 실제 결제·재고 상태와 어긋나지 않음)."""
+
+    permission_classes = [IsApprovedVendor]
+
+    def patch(self, request, pk):
+        item = OrderItem.objects.filter(id=pk, product__vendor=request.user.vendor_profile).first()
+        if item is None:
+            return Response({"error": "주문 항목을 찾을 수 없습니다."}, status=status.HTTP_404_NOT_FOUND)
+        if item.status not in _VENDOR_EDITABLE_STATUSES:
+            return Response(
+                {"error": "결제 전이거나 취소된 주문 항목은 상태를 바꿀 수 없습니다."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        new_status = request.data.get("status")
+        if new_status not in {s.value for s in _VENDOR_EDITABLE_STATUSES}:
+            allowed = ", ".join(sorted(s.value for s in _VENDOR_EDITABLE_STATUSES))
+            raise ValidationError({"status": f"status는 {allowed} 중 하나여야 합니다."})
+
+        item.status = new_status
+        item.save(update_fields=["status"])
+        return Response({"id": item.id, "status": item.status})
 
 
 class CreatorListView(ListAPIView):

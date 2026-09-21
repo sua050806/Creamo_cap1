@@ -5,7 +5,7 @@ import Link from "next/link";
 import StatusTag from "@/components/StatusTag";
 import { useAuth } from "@/lib/auth-context";
 import { apiFetch, resolveMediaUrl } from "@/lib/api";
-import type { AdminSettlement, ApiCategory, VendorProduct } from "@/lib/types";
+import type { AdminOrderItem, AdminSettlement, ApiCategory, VendorProduct } from "@/lib/types";
 
 const VENDOR_STATUS_LABEL: Record<string, string> = {
   pending: "승인대기",
@@ -26,6 +26,26 @@ const SETTLEMENT_STATUS_LABEL: Record<AdminSettlement["status"], string> = {
   completed: "완료",
 };
 
+const ORDER_ITEM_STATUS_LABEL: Record<AdminOrderItem["status"], string> = {
+  pending: "결제대기",
+  paid: "결제완료",
+  preparing: "상품준비",
+  shipping: "배송중",
+  delivered: "배송완료",
+  cancelled: "취소됨",
+};
+
+const ORDER_ITEM_STATUS_OPTIONS: { value: AdminOrderItem["status"]; label: string }[] = [
+  { value: "paid", label: "결제완료" },
+  { value: "preparing", label: "상품준비" },
+  { value: "shipping", label: "배송중" },
+  { value: "delivered", label: "배송완료" },
+];
+
+// admin/shipping-tab.tsx의 EDITABLE_STATUSES와 같은 기준 — 결제 전(pending)·취소된(cancelled)
+// 주문은 여기서 상태를 못 바꾼다(결제·취소는 각각 다른 API를 거쳐야 실제 상태와 안 어긋남).
+const ORDER_ITEM_EDITABLE_STATUSES = new Set(["paid", "preparing", "shipping", "delivered"]);
+
 const EMPTY_FORM = {
   category_id: "",
   name: "",
@@ -37,14 +57,15 @@ const EMPTY_FORM = {
   stock: '{"기본": 0}',
 };
 
-// 벤더 본인 대시보드 — 내 상품 등록/수정/상태 전환 + 내 정산 내역 조회. 크리에이터 대시보드
-// (/creator/dashboard)와 대응되는 벤더 쪽 화면 → ADR-043 참고. 원래 admin/products-tab.tsx가
-// 관리자 대신 하던 걸 벤더 본인이 직접 하게 됨.
+// 벤더 본인 대시보드 — 내 상품 등록/수정/상태 전환 + 배송 상태 관리 + 내 정산 내역 조회. 크리에이터
+// 대시보드(/creator/dashboard)와 대응되는 벤더 쪽 화면 → ADR-043, ADR-044 참고. 원래
+// admin/products-tab.tsx·shipping-tab.tsx가 관리자 대신 하던 걸 벤더 본인이 직접 하게 됨.
 export default function VendorDashboardPage() {
   const { user, isLoading } = useAuth();
   const [products, setProducts] = useState<VendorProduct[] | null>(null);
   const [categories, setCategories] = useState<ApiCategory[]>([]);
   const [settlements, setSettlements] = useState<AdminSettlement[] | null>(null);
+  const [orderItems, setOrderItems] = useState<AdminOrderItem[] | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
   const [fileInputKey, setFileInputKey] = useState(0);
@@ -52,6 +73,7 @@ export default function VendorDashboardPage() {
   const [submitting, setSubmitting] = useState(false);
   const [uploadingId, setUploadingId] = useState<number | null>(null);
   const [changingStatusId, setChangingStatusId] = useState<number | null>(null);
+  const [changingOrderItemId, setChangingOrderItemId] = useState<number | null>(null);
 
   const isApprovedVendor = user?.role === "vendor" && user.vendor_profile?.status === "active";
 
@@ -60,7 +82,25 @@ export default function VendorDashboardPage() {
     apiFetch<VendorProduct[]>("/vendor/products").then(setProducts).catch(() => setProducts([]));
     apiFetch<ApiCategory[]>("/categories").then(setCategories).catch(() => setCategories([]));
     apiFetch<AdminSettlement[]>("/vendor/settlements").then(setSettlements).catch(() => setSettlements([]));
+    apiFetch<AdminOrderItem[]>("/vendor/order-items").then(setOrderItems).catch(() => setOrderItems([]));
   }, [isApprovedVendor]);
+
+  const handleOrderItemStatusChange = async (item: AdminOrderItem, newStatus: AdminOrderItem["status"]) => {
+    setChangingOrderItemId(item.id);
+    try {
+      await apiFetch(`/vendor/order-items/${item.id}/status`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: newStatus }),
+      });
+      setOrderItems((prev) =>
+        prev ? prev.map((i) => (i.id === item.id ? { ...i, status: newStatus } : i)) : prev
+      );
+    } catch {
+      setError("배송 상태 변경에 실패했습니다.");
+    } finally {
+      setChangingOrderItemId(null);
+    }
+  };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -395,6 +435,63 @@ export default function VendorDashboardPage() {
                             </option>
                           ))}
                         </select>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        <div>
+          <h2 className="mb-3 text-sm font-medium text-foreground/50">배송 관리</h2>
+          {orderItems === null ? (
+            <p className="text-sm text-foreground/40">불러오는 중...</p>
+          ) : orderItems.length === 0 ? (
+            <p className="text-sm text-foreground/40">주문 항목이 없습니다.</p>
+          ) : (
+            <div className="overflow-hidden rounded-2xl border border-black/5 bg-white shadow-sm">
+              <table className="w-full border-collapse text-sm">
+                <thead>
+                  <tr className="border-b border-black/10 text-left">
+                    <th className="px-4 py-3 font-medium text-foreground/50">주문번호</th>
+                    <th className="px-4 py-3 font-medium text-foreground/50">구매자</th>
+                    <th className="px-4 py-3 font-medium text-foreground/50">상품</th>
+                    <th className="px-4 py-3 font-medium text-foreground/50">수량</th>
+                    <th className="px-4 py-3 font-medium text-foreground/50">상태</th>
+                    <th className="px-4 py-3 font-medium text-foreground/50">변경</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {orderItems.map((item) => (
+                    <tr key={item.id} className="border-b border-black/5 last:border-0">
+                      <td className="px-4 py-3">#{item.order_id}</td>
+                      <td className="px-4 py-3 text-foreground/60">{item.buyer_email}</td>
+                      <td className="px-4 py-3 font-medium">{item.product_name}</td>
+                      <td className="px-4 py-3">{item.quantity}개</td>
+                      <td className="px-4 py-3">
+                        <StatusTag status={ORDER_ITEM_STATUS_LABEL[item.status]} />
+                      </td>
+                      <td className="px-4 py-3">
+                        {ORDER_ITEM_EDITABLE_STATUSES.has(item.status) ? (
+                          <select
+                            value={item.status}
+                            disabled={changingOrderItemId === item.id}
+                            onChange={(e) =>
+                              handleOrderItemStatusChange(item, e.target.value as AdminOrderItem["status"])
+                            }
+                            className="rounded-lg border border-black/10 px-2 py-1 text-xs disabled:opacity-50"
+                          >
+                            {ORDER_ITEM_STATUS_OPTIONS.map((o) => (
+                              <option key={o.value} value={o.value}>
+                                {o.label}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <span className="text-xs text-foreground/30">-</span>
+                        )}
                       </td>
                     </tr>
                   ))}

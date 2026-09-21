@@ -14,6 +14,8 @@ from .views import (
     MeView,
     SendVerificationCodeView,
     SignupView,
+    VendorOrderItemsView,
+    VendorOrderItemStatusView,
     VendorProductDetailView,
     VendorProductsView,
     VendorProductStatusView,
@@ -42,4 +44,6 @@ urlpatterns = [
     path("vendor/products/<int:pk>", VendorProductDetailView.as_view()),
     path("vendor/products/<int:pk>/status", VendorProductStatusView.as_view()),
     path("vendor/settlements", VendorSettlementsView.as_view()),
+    path("vendor/order-items", VendorOrderItemsView.as_view()),
+    path("vendor/order-items/<int:pk>/status", VendorOrderItemStatusView.as_view()),
 ]
