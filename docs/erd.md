@@ -86,10 +86,10 @@ erDiagram
         int id PK
         int buyer_id FK
         int total_amount
-        string recipient_name "배송지 스냅샷, 주문마다 새로 입력(ADR-041)"
+        string recipient_name "배송지 스냅샷, 주문마다 새로 입력(ADR-041). recipient_name/phone/address는 DB CheckConstraint로 빈 문자열 금지(ADR-046)"
         string phone
         string address
-        string address_detail "선택"
+        string address_detail "선택 — 유일하게 빈 문자열 허용"
         datetime created_at
     }
     OrderItem {

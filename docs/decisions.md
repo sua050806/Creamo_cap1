@@ -929,3 +929,27 @@ ADR-041에서 만든 `ShippingAddressModal`(장바구니/상품 상세에 겹쳐
 (`window.daum` 객체 존재, CDN 직접 요청도 200) 버튼 클릭 시 에러 없이 동작하는 것 확인 — 팝업 자체는
 새 창으로 뜨는 게 다음 위젯의 기본 동작이라 같은 페이지 안 iframe으로는 안 잡힘(정상). 프론트
 타입체크·전체 페이지 스모크 테스트(신설 페이지 포함) 통과.
+
+## ADR-046: 배송지 필수를 DB 제약조건으로 강제 (2026-09-22)
+**상태**: 확정
+
+"주소나 전화번호에 빈 값이면 안 되게 무결성을 지켜야 한다"는 요청. ADR-041에서 `recipient_name`/
+`phone`/`address`를 뷰(`OrderListCreateView.post`)에서만 검증하고 있었는데, 이러면 그 뷰를 거치지
+않는 다른 경로(장고 관리자 사이트 `/django-admin/`, `manage.py shell`, 나중에 추가될 다른 코드
+경로)로는 여전히 빈 값으로 `Order`가 만들어질 수 있는 구멍이 있었음 — 애플리케이션 코드 하나의
+검증에만 의존하는 건 "진짜 무결성"이 아니라는 지적이 맞음.
+
+**변경**: `Order` 모델에 `models.CheckConstraint`를 추가해서 `recipient_name`/`phone`/`address`가
+빈 문자열이면 DB 자체가 저장을 거부하게 함(`address_detail`만 선택 정보라 제외). 필드의
+`blank=True, default=""`도 제거해서 장고 폼 레벨에서도 필수로 취급되게 함. `manage.py shell`에서
+직접 `Order.objects.create(recipient_name="", ...)`를 시도해서 `IntegrityError`로 막히는 것까지
+확인 — 뷰를 우회해도 절대 못 만든다.
+
+**기존 데이터**: 이 제약을 걸려면 이미 빈 값으로 있던 기존 주문(ADR-041 이전 테스트/시드 데이터,
+19건)을 먼저 정리해야 했음 — 실제 배송지가 있는 진짜 주문이 아니라 개발 중 만들어진 테스트 데이터라
+전부 삭제(사용자 확인 후 진행, `OrderItem`/`Payment`는 `on_delete=CASCADE`라 같이 정리됨). 배송지가
+채워진 주문 1건만 남음.
+
+**검증**: 마이그레이션 적용 전 위반 데이터 삭제 → 마이그레이션 정상 적용 확인. `manage.py shell`로
+빈 값 저장 시도가 `IntegrityError`로 막히는 것 확인. `manage.py check` 통과, 전체 페이지 스모크
+테스트 통과.

@@ -9,13 +9,23 @@ class Order(models.Model):
     total_amount = models.PositiveIntegerField()
     # 배송지. 계정에 저장해두고 재사용하는 방식이 아니라(스코프 밖), 주문마다 새로 입력받아 스냅샷으로
     # 저장한다 — 나중에 주소를 또 바꿔도 이미 발생한 주문의 배송지는 그대로 유지돼야 하기 때문(가격
-    # 스냅샷과 같은 이유). blank=True인 건 기존 시드 주문(orders.0002_seed_demo_order)과의 마이그레이션
-    # 호환 때문일 뿐, 실제로 새 주문을 만들 때는 뷰(OrderListCreateView.post)에서 필수로 검증한다.
-    recipient_name = models.CharField(max_length=50, blank=True, default="")
-    phone = models.CharField(max_length=20, blank=True, default="")
-    address = models.CharField(max_length=255, blank=True, default="")
+    # 스냅샷과 같은 이유). 처음엔 뷰(OrderListCreateView.post)에서만 필수로 검증했는데, 그러면 다른
+    # 경로(장고 관리자 사이트, 셸 등)로 만들 때는 여전히 빈 값으로 저장될 수 있어서 DB 제약조건
+    # (아래 Meta.constraints)으로 한 번 더 막는다 — 진짜 무결성은 애플리케이션 코드가 아니라 DB가
+    # 보장해야 함. `address_detail`만 상세동/호수 같은 선택 정보라 필수가 아니다.
+    recipient_name = models.CharField(max_length=50)
+    phone = models.CharField(max_length=20)
+    address = models.CharField(max_length=255)
     address_detail = models.CharField(max_length=255, blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=~models.Q(recipient_name="") & ~models.Q(phone="") & ~models.Q(address=""),
+                name="order_shipping_fields_not_blank",
+            )
+        ]
 
     def __str__(self):
         return f"Order #{self.id}"
