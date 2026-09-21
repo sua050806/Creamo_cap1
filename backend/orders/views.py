@@ -1,4 +1,5 @@
 import logging
+import re
 
 from django.db import transaction
 from rest_framework import status as http_status
@@ -17,6 +18,10 @@ from .models import Cart, CartItem, Order, OrderItem
 from .serializers import CartSerializer, OrderDetailSerializer, OrderListSerializer
 
 logger = logging.getLogger(__name__)
+
+# Order.phone에 걸린 DB CheckConstraint(order_phone_format)와 반드시 같은 패턴으로 유지 — 여기서
+# 먼저 걸러서 친절한 에러를 보여주고, DB 제약은 이 뷰를 거치지 않는 다른 경로에 대한 최후 방어선.
+_PHONE_RE = re.compile(r"^0\d{1,2}-?\d{3,4}-?\d{4}$")
 
 
 def _get_or_create_cart(user):
@@ -204,6 +209,12 @@ class OrderListCreateView(APIView):
         address_detail = (request.data.get("address_detail") or "").strip()
         if not recipient_name or not phone or not address:
             raise ValidationError({"address": "받는 사람, 연락처, 주소는 필수입니다."})
+        # "dd" 같은 아무 문자열도 비어있지만 않으면 그냥 통과되던 문제 — 빈 값만 막던 검증(ADR-046)의
+        # 허점을 지적받아 형식까지 확인(ADR-047). DB에도 같은 정규식으로 CheckConstraint가 걸려있어서
+        # (Order.Meta.constraints) 여기서 안 걸러져도 저장 시점에 한 번 더 막히지만, 그러면 사용자
+        # 입장에선 원인 불명의 500/DB 에러만 보게 되므로 여기서 먼저 친절한 메시지로 막는다.
+        if not _PHONE_RE.match(phone):
+            raise ValidationError({"phone": "전화번호 형식이 올바르지 않습니다. 예: 010-1234-5678"})
 
         resolved_items = [_resolve_order_item(raw_item) for raw_item in raw_items]
 

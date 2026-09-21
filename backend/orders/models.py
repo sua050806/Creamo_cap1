@@ -1,5 +1,13 @@
 from django.conf import settings
+from django.core.validators import RegexValidator
 from django.db import models
+
+# CheckConstraint(order_phone_format)와 같은 패턴 — 여기 있는 건 장고 관리자 사이트 폼 등에서
+# 저장 전에 사람이 읽을 수 있는 에러 메시지를 보여주기 위함이고, 실제 무결성은 그 DB 제약이 보장한다.
+_validate_phone = RegexValidator(
+    regex=r"^0\d{1,2}-?\d{3,4}-?\d{4}$",
+    message="전화번호 형식이 올바르지 않습니다. 예: 010-1234-5678",
+)
 
 
 class Order(models.Model):
@@ -14,7 +22,10 @@ class Order(models.Model):
     # (아래 Meta.constraints)으로 한 번 더 막는다 — 진짜 무결성은 애플리케이션 코드가 아니라 DB가
     # 보장해야 함. `address_detail`만 상세동/호수 같은 선택 정보라 필수가 아니다.
     recipient_name = models.CharField(max_length=50)
-    phone = models.CharField(max_length=20)
+    # "dd" 같은 아무 문자열도 비어있지만 않으면 통과되던 문제(빈 값만 막던 ADR-046 제약의 허점) →
+    # 형식까지 정규식으로 확인(ADR-047). 010-1234-5678처럼 하이픈 있는 것도, 01012345678처럼 없는
+    # 것도 둘 다 허용 — 지역번호(02는 2자리, 나머지는 3자리)까지 포괄.
+    phone = models.CharField(max_length=20, validators=[_validate_phone])
     address = models.CharField(max_length=255)
     address_detail = models.CharField(max_length=255, blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)
@@ -24,7 +35,11 @@ class Order(models.Model):
             models.CheckConstraint(
                 condition=~models.Q(recipient_name="") & ~models.Q(phone="") & ~models.Q(address=""),
                 name="order_shipping_fields_not_blank",
-            )
+            ),
+            models.CheckConstraint(
+                condition=models.Q(phone__regex=r"^0\d{1,2}-?\d{3,4}-?\d{4}$"),
+                name="order_phone_format",
+            ),
         ]
 
     def __str__(self):

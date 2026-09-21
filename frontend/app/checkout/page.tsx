@@ -24,6 +24,8 @@ const inputClass =
 const buttonClass =
   "inline-block rounded-full bg-brand px-4 py-2.5 text-center text-sm font-medium text-brand-foreground transition-opacity hover:opacity-90 disabled:opacity-50";
 
+const PHONE_PATTERN = /^0\d{1,2}-?\d{3,4}-?\d{4}$/;
+
 interface CheckoutItem {
   product_id: number;
   creator_id: number | null;
@@ -139,6 +141,12 @@ function CheckoutContent() {
     if (!items || items.length === 0) return;
     if (!recipientName.trim() || !phone.trim() || !address.trim()) {
       setError("받는 사람, 연락처, 주소는 필수입니다.");
+      return;
+    }
+    // "dd" 같은 아무 문자열도 비어있지만 않으면 통과되던 문제 — 백엔드 Order.phone의 DB
+    // CheckConstraint(order_phone_format)와 반드시 같은 정규식으로 유지.
+    if (!PHONE_PATTERN.test(phone.trim())) {
+      setError("전화번호 형식이 올바르지 않습니다. 예: 010-1234-5678");
       return;
     }
     setSubmitting(true);
