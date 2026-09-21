@@ -3,16 +3,16 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import ShippingAddressModal from "@/components/ShippingAddressModal";
 import { useAuth } from "@/lib/auth-context";
 import { apiFetch, ApiError } from "@/lib/api";
-import type { ApiOrderCreateResponse, ShippingAddress } from "@/lib/types";
 
 const buttonClass =
   "flex-1 rounded-full px-4 py-2.5 text-sm font-medium transition-opacity hover:opacity-90";
 
 // 옵션 선택·수량 조절·장바구니 담기/바로구매 버튼. POST /cart(ADR-020: 상품+옵션+크리에이터 조합이
-// 같으면 수량만 늘어남), 바로구매는 POST /orders로 장바구니를 거치지 않고 바로 주문을 만든다.
+// 같으면 수량만 늘어남). 바로구매는 주문을 바로 만들지 않고 /checkout으로 상품 정보를 실어
+// 보내기만 한다(주문상품 요약·배송지 입력·결제금액을 한 화면에서 보여주는 페이지로 분리했음)
+// → ADR-045 참고.
 export default function ProductActions({
   product,
   creatorId,
@@ -31,8 +31,6 @@ export default function ProductActions({
   const [quantity, setQuantity] = useState(1);
   const [message, setMessage] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
-  const [buyingNow, setBuyingNow] = useState(false);
-  const [showAddressModal, setShowAddressModal] = useState(false);
 
   const handleAddToCart = async () => {
     if (!user) {
@@ -64,30 +62,13 @@ export default function ProductActions({
       setMessage("로그인 후 구매할 수 있습니다.");
       return;
     }
-    setShowAddressModal(true);
-  };
-
-  const submitBuyNow = async (shippingAddress: ShippingAddress) => {
-    setBuyingNow(true);
-    setMessage(null);
-    try {
-      const { order_id } = await apiFetch<ApiOrderCreateResponse>("/orders", {
-        method: "POST",
-        body: JSON.stringify({
-          items: [
-            { product_id: product.id, quantity, option: selectedOptions, creator_id: creatorId ?? null },
-          ],
-          ...shippingAddress,
-        }),
-      });
-      setShowAddressModal(false);
-      router.push(`/orders/${order_id}?confirmed=1`);
-    } catch (err) {
-      setMessage(err instanceof ApiError ? err.message : "주문에 실패했습니다.");
-      setShowAddressModal(false);
-    } finally {
-      setBuyingNow(false);
-    }
+    const params = new URLSearchParams({
+      product_id: String(product.id),
+      quantity: String(quantity),
+      option: JSON.stringify(selectedOptions),
+    });
+    if (creatorId) params.set("creator", String(creatorId));
+    router.push(`/checkout?${params.toString()}`);
   };
 
   return (
@@ -144,10 +125,10 @@ export default function ProductActions({
         </button>
         <button
           onClick={handleBuyNow}
-          disabled={isLoading || buyingNow}
+          disabled={isLoading}
           className={`${buttonClass} bg-brand text-brand-foreground disabled:opacity-50`}
         >
-          {buyingNow ? "주문 처리 중..." : "바로구매"}
+          바로구매
         </button>
       </div>
 
@@ -163,14 +144,6 @@ export default function ProductActions({
             </>
           )}
         </p>
-      )}
-
-      {showAddressModal && (
-        <ShippingAddressModal
-          onConfirm={submitBuyNow}
-          onCancel={() => setShowAddressModal(false)}
-          submitting={buyingNow}
-        />
       )}
     </div>
   );

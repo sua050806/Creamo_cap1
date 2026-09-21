@@ -71,15 +71,6 @@ export interface ApiOrderCreateItem {
   option?: Record<string, string>;
 }
 
-// 받는사람/연락처/주소는 필수, 상세주소만 선택 — 계정에 저장해서 재사용하지 않고 주문마다 새로
-// 입력받는다(backend/orders/views.py OrderListCreateView.post 참고).
-export interface ShippingAddress {
-  recipient_name: string;
-  phone: string;
-  address: string;
-  address_detail: string;
-}
-
 export interface ApiOrderCreateResponse {
   order_id: number;
   total_amount: number;
