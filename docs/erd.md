@@ -79,8 +79,10 @@ erDiagram
         int id PK
         int creator_id FK
         int product_id FK
-        decimal commission_rate "등록 시 Product 기본값 복사, 관리자가 개별 조정 가능"
+        decimal commission_rate "벤더가 제안 시점에 입력(기본값: Product 기본 커미션율)"
+        string status "pending/accepted/rejected — 벤더가 제안하면 pending, 크리에이터가 응답해야 확정(ADR-051)"
         datetime created_at
+        datetime responded_at "nullable — 크리에이터가 수락/거절한 시각"
     }
     Order {
         int id PK
@@ -223,6 +225,14 @@ Django가 모델만 등록하면 자동으로 만들어주는 데이터 관리 �
 
 동일 크리에이터가 동일 상품을 중복 추천 등록하는 것은 **불가**로 확정 →
 `unique_together = ("creator", "product")` 제약을 건다 → [decisions.md](decisions.md) ADR-018 참고.
+
+**(2026-09-22 업데이트, ADR-051)** 위 내용은 관리자가 직접 연결해주던 시절 기준 — "정산이 벤더-
+크리에이터 직거래인데 관리자가 왜 끼냐"는 질문을 계기로, 실제로는 벤더가 제안하고 크리에이터가
+수락/거절하는 게 맞다고 정리하면서 `status`(pending/accepted/rejected)·`responded_at`을 추가함.
+`GET /products`·`GET /creators/{id}/products`·주문 커미션 계산 등 "실제 활성 추천"을 참조하는 모든
+곳은 `status=accepted`인 것만 본다 — `pending`(벤더가 제안만 하고 크리에이터가 응답 전)은 어디에도
+안 보임. 관리자가 여전히 `POST /admin/products/{id}/recommendations`로 직접 연결할 수는 있는데(UI는
+없어짐, ADR-048), 그 경우엔 수락 절차 없이 바로 `accepted`로 생성된다(관리자 최종 권한).
 
 ### Cart / CartItem (신규 추가)
 장바구니를 서버 DB에 저장하기로 결정하면서 추가한 테이블 → [decisions.md](decisions.md) ADR-013 참고.

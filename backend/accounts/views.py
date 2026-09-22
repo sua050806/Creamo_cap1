@@ -25,6 +25,7 @@ from .serializers import (
     CreatorProfileSerializer,
     CreatorPublicSerializer,
     CreatorRecommendationProductSerializer,
+    CreatorRecommendationRequestSerializer,
     SignupSerializer,
     UserSerializer,
     VendorProductSerializer,
@@ -231,6 +232,73 @@ class VendorProductStatusView(APIView):
         return Response({"id": product.id, "status": product.status})
 
 
+class VendorRecommendationsView(APIView):
+    """본인 상품에 크리에이터 추천을 제안/철회 — 벤더가 직접 크리에이터를 골라 커미션율을 제시하고,
+    크리에이터가 수락해야 실제로 연결된다(ADR-051). 원래는 관리자가 상품 관리 화면에서 바로 연결해
+    줬는데(ADR-034), "실제로는 벤더가 크리에이터한테 제안하고 크리에이터가 수락/거절하는 구조 아니냐"는
+    지적으로 벤더-크리에이터 양방향 흐름으로 바꿈."""
+
+    permission_classes = [IsApprovedVendor]
+
+    def post(self, request, pk):
+        product = Product.objects.filter(id=pk, vendor=request.user.vendor_profile).first()
+        if product is None:
+            return Response({"error": "상품을 찾을 수 없습니다."}, status=status.HTTP_404_NOT_FOUND)
+
+        creator_id = request.data.get("creator_id")
+        creator = CreatorProfile.objects.filter(id=creator_id, status=CreatorProfile.Status.APPROVED).first()
+        if creator is None:
+            return Response(
+                {"error": "존재하지 않거나 승인되지 않은 크리에이터입니다."}, status=status.HTTP_404_NOT_FOUND
+            )
+
+        try:
+            commission_rate = request.data.get("commission_rate")
+            commission_rate = float(commission_rate) if commission_rate is not None else float(product.commission_rate)
+        except (TypeError, ValueError):
+            raise ValidationError({"commission_rate": "숫자여야 합니다."})
+
+        existing = CreatorRecommendation.objects.filter(creator=creator, product=product).first()
+        if existing and existing.status in (
+            CreatorRecommendation.Status.PENDING,
+            CreatorRecommendation.Status.ACCEPTED,
+        ):
+            return Response(
+                {"error": "이미 제안했거나 연결된 크리에이터입니다."}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if existing:
+            # 거절당했던 제안 — 새 커미션율로 다시 제안(재사용, unique_together 때문에 새로 못 만듦).
+            existing.commission_rate = commission_rate
+            existing.status = CreatorRecommendation.Status.PENDING
+            existing.responded_at = None
+            existing.save(update_fields=["commission_rate", "status", "responded_at"])
+            recommendation = existing
+        else:
+            recommendation = CreatorRecommendation.objects.create(
+                creator=creator, product=product, commission_rate=commission_rate
+            )
+
+        return Response(
+            {
+                "id": recommendation.id,
+                "creator_id": recommendation.creator_id,
+                "handle": recommendation.creator.handle,
+                "commission_rate": recommendation.commission_rate,
+                "status": recommendation.status,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+    def delete(self, request, pk, creator_id):
+        deleted, _ = CreatorRecommendation.objects.filter(
+            product_id=pk, product__vendor=request.user.vendor_profile, creator_id=creator_id
+        ).delete()
+        if not deleted:
+            return Response({"error": "제안·연결을 찾을 수 없습니다."}, status=status.HTTP_404_NOT_FOUND)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
 class VendorSettlementsView(APIView):
     """본인(벤더) 정산 내역 조회 — CreatorDashboardStatsView와 대응되는 벤더 쪽 대시보드 화면용."""
 
@@ -335,6 +403,7 @@ class CreatorProductsView(ListAPIView):
         return (
             CreatorRecommendation.objects.filter(
                 creator_id=self.kwargs["pk"],
+                status=CreatorRecommendation.Status.ACCEPTED,
                 product__status=Product.Status.SELLING,
                 product__vendor__status=VendorProfile.Status.ACTIVE,
             ).select_related("product")
@@ -401,3 +470,46 @@ class CreatorDashboardProductsView(APIView):
             for row in rows
         ]
         return Response(data)
+
+
+class CreatorRecommendationRequestsView(ListAPIView):
+    """벤더로부터 받은 추천 제안 목록 — 본인 것만, 상태(대기/수락/거절) 무관 전체 이력을 보여주고
+    프론트에서 대기중인 것만 수락/거절 버튼을 노출한다(ADR-051)."""
+
+    permission_classes = [IsApprovedCreator]
+    serializer_class = CreatorRecommendationRequestSerializer
+
+    def get_queryset(self):
+        return (
+            CreatorRecommendation.objects.filter(creator=self.request.user.creator_profile)
+            .select_related("product", "product__vendor")
+            .order_by("-created_at")
+        )
+
+
+class CreatorRecommendationRespondView(APIView):
+    """제안 수락/거절 — 본인에게 온 제안만, 아직 대기중(pending)인 것만 응답 가능."""
+
+    permission_classes = [IsApprovedCreator]
+
+    def post(self, request, pk):
+        recommendation = CreatorRecommendation.objects.filter(
+            id=pk, creator=request.user.creator_profile
+        ).first()
+        if recommendation is None:
+            return Response({"error": "제안을 찾을 수 없습니다."}, status=status.HTTP_404_NOT_FOUND)
+        if recommendation.status != CreatorRecommendation.Status.PENDING:
+            return Response(
+                {"error": "이미 응답한 제안입니다."}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+        decision = request.data.get("decision")
+        if decision not in ("accept", "reject"):
+            raise ValidationError({"decision": "decision은 accept 또는 reject여야 합니다."})
+
+        recommendation.status = (
+            CreatorRecommendation.Status.ACCEPTED if decision == "accept" else CreatorRecommendation.Status.REJECTED
+        )
+        recommendation.responded_at = timezone.now()
+        recommendation.save(update_fields=["status", "responded_at"])
+        return Response(CreatorRecommendationRequestSerializer(recommendation).data)

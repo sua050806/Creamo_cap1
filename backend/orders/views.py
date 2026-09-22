@@ -70,7 +70,7 @@ class CartView(APIView):
                 id=creator_id, status=CreatorProfile.Status.APPROVED
             ).first()
             if creator_candidate and CreatorRecommendation.objects.filter(
-                creator=creator_candidate, product=product
+                creator=creator_candidate, product=product, status=CreatorRecommendation.Status.ACCEPTED
             ).exists():
                 creator = creator_candidate
 
@@ -160,7 +160,9 @@ def _resolve_order_item(raw_item):
             id=creator_id, status=CreatorProfile.Status.APPROVED
         ).first()
         recommendation = (
-            CreatorRecommendation.objects.filter(creator=creator_candidate, product=product).first()
+            CreatorRecommendation.objects.filter(
+                creator=creator_candidate, product=product, status=CreatorRecommendation.Status.ACCEPTED
+            ).first()
             if creator_candidate
             else None
         )

@@ -5,7 +5,13 @@ import Link from "next/link";
 import StatusTag from "@/components/StatusTag";
 import { useAuth } from "@/lib/auth-context";
 import { apiFetch, resolveMediaUrl } from "@/lib/api";
-import type { AdminOrderItem, AdminSettlement, ApiCategory, VendorProduct } from "@/lib/types";
+import type { AdminOrderItem, AdminSettlement, ApiCategory, ApiCreator, VendorProduct } from "@/lib/types";
+
+const RECOMMENDATION_STATUS_LABEL: Record<string, string> = {
+  pending: "제안함",
+  accepted: "수락됨",
+  rejected: "거절됨",
+};
 
 const VENDOR_STATUS_LABEL: Record<string, string> = {
   pending: "승인대기",
@@ -57,15 +63,20 @@ const EMPTY_FORM = {
   stock: '{"기본": 0}',
 };
 
-// 벤더 본인 대시보드 — 내 상품 등록/수정/상태 전환 + 배송 상태 관리 + 내 정산 내역 조회. 크리에이터
-// 대시보드(/creator/dashboard)와 대응되는 벤더 쪽 화면 → ADR-043, ADR-044 참고. 원래
-// admin/products-tab.tsx·shipping-tab.tsx가 관리자 대신 하던 걸 벤더 본인이 직접 하게 됨.
+// 벤더 본인 대시보드 — 내 상품 등록/수정/상태 전환 + 크리에이터 추천 제안 + 배송 상태 관리 + 내 정산
+// 내역 조회. 크리에이터 대시보드(/creator/dashboard)와 대응되는 벤더 쪽 화면 → ADR-043, ADR-044,
+// ADR-051 참고. 원래 admin/products-tab.tsx·shipping-tab.tsx가 관리자 대신 하던 걸 벤더 본인이
+// 직접 하게 됨. 크리에이터 추천은 벤더가 제안만 하고, 실제 연결(accepted)은 크리에이터가 본인
+// 대시보드에서 수락해야 이루어진다.
 export default function VendorDashboardPage() {
   const { user, isLoading } = useAuth();
   const [products, setProducts] = useState<VendorProduct[] | null>(null);
   const [categories, setCategories] = useState<ApiCategory[]>([]);
   const [settlements, setSettlements] = useState<AdminSettlement[] | null>(null);
   const [orderItems, setOrderItems] = useState<AdminOrderItem[] | null>(null);
+  const [creators, setCreators] = useState<ApiCreator[]>([]);
+  const [proposal, setProposal] = useState<Record<number, { creatorId: string; rate: string }>>({});
+  const [proposingId, setProposingId] = useState<number | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
   const [fileInputKey, setFileInputKey] = useState(0);
@@ -83,7 +94,46 @@ export default function VendorDashboardPage() {
     apiFetch<ApiCategory[]>("/categories").then(setCategories).catch(() => setCategories([]));
     apiFetch<AdminSettlement[]>("/vendor/settlements").then(setSettlements).catch(() => setSettlements([]));
     apiFetch<AdminOrderItem[]>("/vendor/order-items").then(setOrderItems).catch(() => setOrderItems([]));
+    apiFetch<ApiCreator[]>("/creators").then(setCreators).catch(() => setCreators([]));
   }, [isApprovedVendor]);
+
+  // 제안(POST)·철회(DELETE) — 벤더가 크리에이터를 고르고 커미션율을 제시하면 pending으로 시작,
+  // 크리에이터가 대시보드에서 수락/거절해야 실제로 연결된다(ADR-051).
+  const handlePropose = async (product: VendorProduct) => {
+    const state = proposal[product.id];
+    if (!state?.creatorId) return;
+    setProposingId(product.id);
+    setError(null);
+    try {
+      await apiFetch(`/vendor/products/${product.id}/recommendations`, {
+        method: "POST",
+        body: JSON.stringify({
+          creator_id: Number(state.creatorId),
+          commission_rate: state.rate ? Number(state.rate) : undefined,
+        }),
+      });
+      const updated = await apiFetch<VendorProduct>(`/vendor/products/${product.id}`);
+      setProducts((prev) => (prev ? prev.map((p) => (p.id === product.id ? updated : p)) : prev));
+      setProposal((prev) => ({ ...prev, [product.id]: { creatorId: "", rate: "" } }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "제안에 실패했습니다.");
+    } finally {
+      setProposingId(null);
+    }
+  };
+
+  const handleWithdraw = async (product: VendorProduct, creatorId: number) => {
+    await apiFetch(`/vendor/products/${product.id}/recommendations/${creatorId}`, { method: "DELETE" });
+    setProducts((prev) =>
+      prev
+        ? prev.map((p) =>
+            p.id === product.id
+              ? { ...p, recommendations: p.recommendations.filter((r) => r.creator_id !== creatorId) }
+              : p
+          )
+        : prev
+    );
+  };
 
   const handleOrderItemStatusChange = async (item: AdminOrderItem, newStatus: AdminOrderItem["status"]) => {
     setChangingOrderItemId(item.id);
@@ -389,6 +439,7 @@ export default function VendorDashboardPage() {
                     <th className="px-4 py-3 font-medium text-foreground/50">가격</th>
                     <th className="px-4 py-3 font-medium text-foreground/50">수수료율</th>
                     <th className="px-4 py-3 font-medium text-foreground/50">상태</th>
+                    <th className="px-4 py-3 font-medium text-foreground/50">추천 크리에이터</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -435,6 +486,73 @@ export default function VendorDashboardPage() {
                             </option>
                           ))}
                         </select>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex flex-col gap-1.5">
+                          {p.recommendations.length > 0 && (
+                            <div className="flex flex-wrap gap-1">
+                              {p.recommendations.map((rec) => (
+                                <span
+                                  key={rec.creator_id}
+                                  className="flex items-center gap-1 rounded-full bg-black/5 px-2 py-0.5 text-xs text-foreground/70"
+                                >
+                                  @{rec.handle} ({rec.commission_rate}%){" "}
+                                  <StatusTag status={RECOMMENDATION_STATUS_LABEL[rec.status]} />
+                                  <button
+                                    onClick={() => handleWithdraw(p, rec.creator_id)}
+                                    className="text-foreground/40 hover:text-foreground/70"
+                                    aria-label={`@${rec.handle} 제안 철회`}
+                                  >
+                                    ×
+                                  </button>
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                          <div className="flex gap-1">
+                            <select
+                              value={proposal[p.id]?.creatorId ?? ""}
+                              onChange={(e) =>
+                                setProposal((prev) => ({
+                                  ...prev,
+                                  [p.id]: { creatorId: e.target.value, rate: prev[p.id]?.rate ?? "" },
+                                }))
+                              }
+                              className="rounded-lg border border-black/10 px-1.5 py-1 text-xs"
+                            >
+                              <option value="">크리에이터 선택</option>
+                              {creators
+                                .filter((c) => !p.recommendations.some((r) => r.creator_id === c.id))
+                                .map((c) => (
+                                  <option key={c.id} value={c.id}>
+                                    @{c.handle}
+                                  </option>
+                                ))}
+                            </select>
+                            <input
+                              type="number"
+                              min={0}
+                              max={100}
+                              step="0.01"
+                              placeholder={`${p.commission_rate}%`}
+                              value={proposal[p.id]?.rate ?? ""}
+                              onChange={(e) =>
+                                setProposal((prev) => ({
+                                  ...prev,
+                                  [p.id]: { creatorId: prev[p.id]?.creatorId ?? "", rate: e.target.value },
+                                }))
+                              }
+                              className="w-16 rounded-lg border border-black/10 px-1.5 py-1 text-xs"
+                            />
+                            <button
+                              onClick={() => handlePropose(p)}
+                              disabled={!proposal[p.id]?.creatorId || proposingId === p.id}
+                              className="rounded-lg border border-black/10 px-2 py-1 text-xs font-medium text-foreground/70 transition-colors hover:bg-black/5 disabled:opacity-50"
+                            >
+                              제안
+                            </button>
+                          </div>
+                        </div>
                       </td>
                     </tr>
                   ))}

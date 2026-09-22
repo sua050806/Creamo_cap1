@@ -156,6 +156,16 @@ export interface AdminUser {
   creator_status: string | null;
 }
 
+// 벤더가 본인 상품에 제안한 크리에이터 추천 현황 — 벤더가 제안하면 pending으로 시작하고, 크리에이터가
+// 응답해야 accepted/rejected가 된다(ADR-051).
+export interface VendorProductRecommendation {
+  id: number;
+  creator_id: number;
+  handle: string;
+  commission_rate: number;
+  status: "pending" | "accepted" | "rejected";
+}
+
 // 벤더 본인 대시보드에서 쓰는 상품 타입 — AdminProduct와 달리 vendor_id/vendor_name이 없다(본인
 // 소유로만 스코프되므로 굳이 안 보여줌).
 export interface VendorProduct {
@@ -172,6 +182,21 @@ export interface VendorProduct {
   stock: Record<string, number>;
   status: string;
   created_at: string;
+  recommendations: VendorProductRecommendation[];
+}
+
+// 크리에이터 대시보드의 "제안 받은 상품" 목록 — 벤더가 제안한 커미션율과 어느 상품·벤더인지 같이
+// 내려온다(ADR-051).
+export interface CreatorRecommendationRequest {
+  id: number;
+  product_id: number;
+  product_name: string;
+  product_thumbnail: string | null;
+  vendor_name: string;
+  commission_rate: string;
+  status: "pending" | "accepted" | "rejected";
+  created_at: string;
+  responded_at: string | null;
 }
 
 export interface AdminProduct {

@@ -578,19 +578,61 @@ API는 원래부터 이 두 경우(진짜 크리에이터가 아님 / creator인
 따로 지정할 방법이 없다는 지적을 받고 구현 중 추가.
 
 ### POST /admin/products/{id}/recommendations
-**인증**: 역할: admin — 등록 시점에 정하지 않았거나 나중에 추가/교체하고 싶을 때. 문서에는 없었지만
-구현 중 추가 → ADR-034 참고.
+**인증**: 역할: admin — **UI에서는 접근할 방법 없음(ADR-048로 관리자 콘솔 "상품 관리" 탭 자체가
+없어짐), API·권한은 유지.** 원래(ADR-034)는 등록 시점에 정하지 않았거나 나중에 추가/교체하고 싶을 때
+쓰던 것. 관리자가 직접 연결하면 크리에이터 수락 절차 없이 바로 `accepted`로 생성됨(관리자 최종
+권한) — 벤더가 제안하는 일반적인 경로는 아래 `POST /vendor/products/{id}/recommendations` 참고
+(ADR-051).
 ```json
 // request
 { "creator_id": 3 }
 // response 201 (전체 상품 정보 반환, recommended_by 갱신됨)
 ```
-이미 같은 크리에이터가 추천 중이면 400.
+이미 같은 크리에이터가 추천/제안 중이면(pending이든 accepted든) 400.
 
 ### DELETE /admin/products/{id}/recommendations/{creator_id}
 **인증**: 역할: admin
 ```json
 // response 200 (전체 상품 정보 반환)
+```
+
+### POST /vendor/products/{id}/recommendations, DELETE .../{creator_id}
+**인증**: role=vendor이고 VendorProfile.status=active인 본인만 — 본인 상품에 크리에이터 추천을
+제안/철회(ADR-051). "정산이 벤더-크리에이터 직거래 아니냐"는 질문에서 출발해서, 실제로는
+**벤더가 크리에이터에게 커미션율을 제시하며 제안하고, 크리에이터가 수락해야 실제로 연결**되는 게
+맞다고 정리하고 추가함 — 원래(ADR-034~048)는 관리자가 아무 크리에이터나 바로 연결해주던 방식이었음.
+```json
+// POST request
+{ "creator_id": 3, "commission_rate": 7.0 }  // commission_rate 생략하면 상품 기본 커미션율 사용
+// response 201
+{ "id": 12, "creator_id": 3, "handle": "gil-dong", "commission_rate": 7.0, "status": "pending" }
+```
+제안 시점엔 `pending`(제안됨)으로 시작 — 크리에이터가 응답(`POST
+/creator/dashboard/requests/{id}/respond`)해야 `accepted`가 되고, 그때부터 상품 상세의
+`recommended_by`·주문 커미션 계산 대상에 포함된다. `pending`인 동안은 공개 화면·커미션 어디에도 안
+보임. 본인 상품이 아니면 404. 이미 `pending`이거나 `accepted`인 크리에이터에게 또 제안하면 400 —
+단 `rejected`(거절당함) 상태면 새 커미션율로 재제안 가능(같은 레코드를 `pending`으로 되돌림,
+`unique_together`라 새로 못 만들어서).
+```json
+// DELETE response 204 — 제안 철회(pending) 또는 연결 해제(accepted) 둘 다 가능
+```
+
+### GET /creator/dashboard/requests
+**인증**: role=creator(승인)만 — 본인에게 온 제안 전체 이력(대기/수락/거절 무관).
+```json
+// response 200
+[ { "id": 12, "product_id": 14, "product_name": "테스트상품", "product_thumbnail": null,
+    "vendor_name": "OO전자", "commission_rate": "7.00", "status": "pending",
+    "created_at": "...", "responded_at": null } ]
+```
+
+### POST /creator/dashboard/requests/{id}/respond
+**인증**: role=creator(승인)만 — 본인에게 온 제안만, `pending`인 것만 응답 가능(이미 응답한 제안이면
+400).
+```json
+// request
+{ "decision": "accept" }  // "accept" | "reject"
+// response 200 (위 requests 항목과 같은 형태, status/responded_at 갱신됨)
 ```
 
 ### PATCH /admin/products/{id}

@@ -211,10 +211,13 @@ class AdminProductStatusView(APIView):
 
 
 class AdminProductRecommendationsView(APIView):
-    """기존 상품에 추천 크리에이터를 연결/해제. 등록 시점에 안 정했거나, 나중에 크리에이터를 추가·
-    교체하고 싶을 때 사용 — CreatorRecommendation 생성을 원래 Django 관리자 사이트에서만 하던 것을
-    (ADR-021/022) 관리자 콘솔에서도 할 수 있게 보강 → ADR-034 참고. 개별 크리에이터 커미션율 조정은
-    여전히 Django 관리자 사이트에서(ADR-021 그대로 유지)."""
+    """기존 상품에 추천 크리에이터를 연결/해제. 원래(ADR-034) 관리자 콘솔 "상품 관리" 탭에서 쓰던
+    엔드포인트인데, 그 탭 자체를 없애면서(ADR-048) 지금은 UI에서 접근할 방법이 없다 — 다른 관리자
+    엔드포인트들과 같은 이유로 지우지 않고 남겨둠. 벤더가 크리에이터에게 직접 제안하고 크리에이터가
+    수락/거절하는 흐름이 새로 생기면서(ADR-051), CreatorRecommendation에 status가 추가됨 — 관리자가
+    여기로 직접 연결하는 건 즉시 승인된 것으로 본다(수락 절차 없이 바로 accepted, 관리자 최종 권한).
+
+    개별 크리에이터 커미션율 조정은 여전히 Django 관리자 사이트에서(ADR-021 그대로 유지)."""
 
     permission_classes = [IsAdmin]
 
@@ -239,7 +242,11 @@ class AdminProductRecommendationsView(APIView):
             )
 
         CreatorRecommendation.objects.create(
-            creator=creator, product=product, commission_rate=product.commission_rate
+            creator=creator,
+            product=product,
+            commission_rate=product.commission_rate,
+            status=CreatorRecommendation.Status.ACCEPTED,
+            responded_at=timezone.now(),
         )
         return Response(AdminProductSerializer(product).data, status=http_status.HTTP_201_CREATED)
 

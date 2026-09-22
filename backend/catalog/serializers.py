@@ -21,7 +21,11 @@ class ProductListSerializer(serializers.ModelSerializer):
         fields = ["id", "name", "price", "thumbnail", "status", "recommended_by"]
 
     def get_recommended_by(self, product):
-        recommendations = CreatorRecommendation.objects.filter(product=product).select_related("creator")
+        # accepted만 — pending(벤더가 제안만 하고 크리에이터가 아직 수락 안 함)은 공개 화면에
+        # 노출되면 안 됨(ADR-051 참고).
+        recommendations = CreatorRecommendation.objects.filter(
+            product=product, status=CreatorRecommendation.Status.ACCEPTED
+        ).select_related("creator")
         return [
             {"creator_id": rec.creator_id, "handle": rec.creator.handle} for rec in recommendations
         ]
@@ -53,7 +57,9 @@ class ProductDetailSerializer(serializers.ModelSerializer):
         ]
 
     def get_recommended_by(self, product):
-        recommendations = CreatorRecommendation.objects.filter(product=product).select_related("creator")
+        recommendations = CreatorRecommendation.objects.filter(
+            product=product, status=CreatorRecommendation.Status.ACCEPTED
+        ).select_related("creator")
         return [
             {"creator_id": rec.creator_id, "handle": rec.creator.handle} for rec in recommendations
         ]

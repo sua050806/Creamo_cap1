@@ -5,10 +5,11 @@ import Link from "next/link";
 import StatCard from "@/components/StatCard";
 import StatusTag from "@/components/StatusTag";
 import { useAuth } from "@/lib/auth-context";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, resolveMediaUrl } from "@/lib/api";
 import type {
   CreatorDashboardProduct,
   CreatorDashboardStats,
+  CreatorRecommendationRequest,
 } from "@/lib/types";
 
 const CREATOR_STATUS_LABEL: Record<string, string> = {
@@ -17,15 +18,24 @@ const CREATOR_STATUS_LABEL: Record<string, string> = {
   rejected: "반려",
 };
 
-// 크리에이터 대시보드: 판매수·누적 커미션·정산 예정액, 추천 상품별 성과.
-// 미승인 크리에이터는 스펙 2.2대로 "심사 중" 화면만 노출하고 실제 데이터는 보여주지 않는다.
-// GET /creator/dashboard/stats, /creator/dashboard/products 연동(role=creator 승인 상태만 접근 가능).
+const REQUEST_STATUS_LABEL: Record<string, string> = {
+  pending: "대기중",
+  accepted: "수락됨",
+  rejected: "거절됨",
+};
+
+// 크리에이터 대시보드: 벤더가 보낸 추천 제안(수락/거절), 판매수·누적 커미션·정산 예정액, 추천 상품별
+// 성과. 미승인 크리에이터는 스펙 2.2대로 "심사 중" 화면만 노출하고 실제 데이터는 보여주지 않는다.
+// GET /creator/dashboard/stats, /products, /requests 연동(role=creator 승인 상태만 접근 가능) →
+// ADR-051 참고(제안 목록·수락/거절은 이번에 추가됨).
 export default function CreatorDashboardPage() {
   const { user, isLoading } = useAuth();
   const [stats, setStats] = useState<CreatorDashboardStats | null>(null);
   const [products, setProducts] = useState<CreatorDashboardProduct[] | null>(
     null,
   );
+  const [requests, setRequests] = useState<CreatorRecommendationRequest[] | null>(null);
+  const [respondingId, setRespondingId] = useState<number | null>(null);
 
   const isApprovedCreator =
     user?.role === "creator" && user.creator_profile?.status === "approved";
@@ -38,7 +48,23 @@ export default function CreatorDashboardPage() {
     apiFetch<CreatorDashboardProduct[]>("/creator/dashboard/products")
       .then(setProducts)
       .catch(() => setProducts([]));
+    apiFetch<CreatorRecommendationRequest[]>("/creator/dashboard/requests")
+      .then(setRequests)
+      .catch(() => setRequests([]));
   }, [isApprovedCreator]);
+
+  const respond = async (request: CreatorRecommendationRequest, decision: "accept" | "reject") => {
+    setRespondingId(request.id);
+    try {
+      const updated = await apiFetch<CreatorRecommendationRequest>(
+        `/creator/dashboard/requests/${request.id}/respond`,
+        { method: "POST", body: JSON.stringify({ decision }) }
+      );
+      setRequests((prev) => (prev ? prev.map((r) => (r.id === request.id ? updated : r)) : prev));
+    } finally {
+      setRespondingId(null);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -131,6 +157,75 @@ export default function CreatorDashboardPage() {
             label="정산 예정액"
             value={`${stats.commission_pending.toLocaleString()}원`}
           />
+        </div>
+      )}
+
+      <h2 className="mt-10 mb-3 text-sm font-medium text-foreground/50">
+        제안 받은 상품
+      </h2>
+      {requests === null ? (
+        <p className="text-sm text-foreground/40">불러오는 중...</p>
+      ) : requests.length === 0 ? (
+        <p className="text-sm text-foreground/40">아직 받은 제안이 없습니다.</p>
+      ) : (
+        <div className="max-w-2xl overflow-hidden rounded-2xl border border-black/5 bg-white shadow-sm">
+          <table className="w-full border-collapse text-sm">
+            <thead>
+              <tr className="border-b border-black/10 text-left">
+                <th className="px-4 py-3 font-medium text-foreground/50">상품</th>
+                <th className="px-4 py-3 font-medium text-foreground/50">벤더</th>
+                <th className="px-4 py-3 font-medium text-foreground/50">제안 커미션율</th>
+                <th className="px-4 py-3 font-medium text-foreground/50">상태</th>
+                <th className="px-4 py-3 font-medium text-foreground/50">응답</th>
+              </tr>
+            </thead>
+            <tbody>
+              {requests.map((r) => (
+                <tr key={r.id} className="border-b border-black/5 last:border-0">
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      {r.product_thumbnail ? (
+                        // eslint-disable-next-line @next/next/no-img-element -- 백엔드가 주는 이미지
+                        <img
+                          src={resolveMediaUrl(r.product_thumbnail)}
+                          alt={r.product_name}
+                          className="h-8 w-8 rounded-lg object-cover"
+                        />
+                      ) : (
+                        <div className="h-8 w-8 rounded-lg bg-black/5" />
+                      )}
+                      <span className="font-medium">{r.product_name}</span>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-foreground/60">{r.vendor_name}</td>
+                  <td className="px-4 py-3">{r.commission_rate}%</td>
+                  <td className="px-4 py-3">
+                    <StatusTag status={REQUEST_STATUS_LABEL[r.status]} />
+                  </td>
+                  <td className="px-4 py-3">
+                    {r.status === "pending" && (
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => respond(r, "accept")}
+                          disabled={respondingId === r.id}
+                          className="rounded-full bg-brand px-3 py-1 text-xs font-medium text-brand-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
+                        >
+                          수락
+                        </button>
+                        <button
+                          onClick={() => respond(r, "reject")}
+                          disabled={respondingId === r.id}
+                          className="rounded-full bg-black/5 px-3 py-1 text-xs font-medium text-foreground/60 transition-colors hover:bg-black/10 disabled:opacity-50"
+                        >
+                          거절
+                        </button>
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
 
