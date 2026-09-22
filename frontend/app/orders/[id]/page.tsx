@@ -6,7 +6,7 @@ import Script from "next/script";
 import { useSearchParams } from "next/navigation";
 import StatusTag from "@/components/StatusTag";
 import { useAuth } from "@/lib/auth-context";
-import { apiFetch, ApiError } from "@/lib/api";
+import { apiFetch, ApiError, formatOrderNumber } from "@/lib/api";
 import type { ApiOrderDetail, ApiPaymentCompleteResponse } from "@/lib/types";
 
 // 포트원 V2 브라우저 SDK는 번들러(Turbopack)가 아니라 브라우저가 직접 ESM으로 불러오게
@@ -195,7 +195,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
         ) : (
           <>
             <p className="mb-4 text-sm text-foreground/50">
-              주문번호 #{order.id} · {order.created_at.slice(0, 10)}
+              주문번호 {formatOrderNumber(order.id, order.created_at)} · {order.created_at.slice(0, 10)}
             </p>
 
             <div className="overflow-hidden rounded-2xl border border-black/5 bg-white shadow-sm">

@@ -46,7 +46,7 @@ erDiagram
     }
     VendorProfile {
         int id PK
-        int user_id FK "nullable — 관리자가 대신 등록한 레거시 벤더는 계정 연결 전까지 비어있음(ADR-043)"
+        int user_id FK "필수(ADR-048) — ADR-043 도입 당시엔 nullable이었으나 backfill로 기존 벤더 전부 연결 후 필수로 전환, 계정 없는 벤더는 더 이상 생성 불가"
         string name
         string business_no
         string contact

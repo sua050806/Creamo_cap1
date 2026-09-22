@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, formatOrderNumber } from "@/lib/api";
 import StatCard from "@/components/StatCard";
 import StatusTag from "@/components/StatusTag";
 import type { ApiOrderListItem } from "@/lib/types";
@@ -111,7 +111,7 @@ export default function MyPage() {
               className="flex items-center justify-between px-6 py-4 text-sm transition-colors hover:bg-black/[0.02]"
             >
               <div>
-                <p className="font-medium">#{order.id}</p>
+                <p className="font-medium">{formatOrderNumber(order.id, order.created_at)}</p>
                 <p className="mt-0.5 text-xs text-foreground/50">{order.created_at.slice(0, 10)}</p>
               </div>
               <div className="flex items-center gap-3">

@@ -19,6 +19,14 @@ function resolveServerSideBaseUrl() {
 // 못 불러온다(그 이름은 도커 내부망 전용). 배포 후 신상품 썸네일이 깨져서 발견 → 경로만 남기고
 // 브라우저가 실제로 붙을 수 있는 공인 주소(API_BASE_URL)로 다시 붙여준다. <img src={...}>로 쓰는
 // 모든 곳에서 thumbnail을 직접 쓰지 말고 반드시 이 함수를 거쳐야 함.
+// 주문 id를 그냥 그대로("#10", "#8") 보여주면 DB 내부 자동증가 번호가 그대로 드러나서, 테스트 데이터를
+// 지우고 나면 번호가 듬성듬성해 보이는 문제가 있었다(사용자가 실제로 확인하고 지적) — 주문일(YYYYMMDD)
+// + 네 자리로 채운 id로 화면에만 다르게 포맷해서 보여준다. id 자체나 DB는 안 바꿈, 표시 전용.
+export function formatOrderNumber(id: number, createdAt: string): string {
+  const date = createdAt.slice(0, 10).replace(/-/g, "");
+  return `#${date}-${String(id).padStart(4, "0")}`;
+}
+
 export function resolveMediaUrl(url: string | null | undefined): string | undefined {
   if (!url) return undefined;
   const path = url.startsWith("http") ? new URL(url).pathname : url.startsWith("/") ? url : `/${url}`;

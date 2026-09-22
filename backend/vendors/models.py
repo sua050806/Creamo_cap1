@@ -13,10 +13,12 @@ class VendorProfile(models.Model):
         SUSPENDED = "suspended", "판매중단"
         REJECTED = "rejected", "반려"
 
-    # null 허용 — 관리자가 오프라인 정보로 대신 등록한 레거시 벤더는 계정이 없을 수 있다(ADR-043
-    # 이전부터 있던 데이터, 일괄 계정 생성 스크립트로 연결 전까지 null로 남음).
+    # ADR-043 도입 당시엔 관리자가 오프라인 정보로 대신 등록한 레거시 벤더가 계정이 없을 수 있어서
+    # null=True였는데, backfill_vendor_accounts로 기존 벤더 전부에게 계정을 만들어 연결한 뒤로는
+    # "계정 없는 벤더"라는 상태 자체를 아예 없애기로 함(ADR-048) — 관리자 콘솔에서 상품을 대신
+    # 등록해주던 기능도 같이 없앴으므로, 계정 없이 벤더가 생길 이유·경로가 더는 없다.
     user = models.OneToOneField(
-        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="vendor_profile", null=True, blank=True
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="vendor_profile"
     )
     name = models.CharField(max_length=100)
     business_no = models.CharField(max_length=20)

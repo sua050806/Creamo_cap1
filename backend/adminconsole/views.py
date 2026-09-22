@@ -253,7 +253,8 @@ class AdminProductRecommendationsView(APIView):
 
 
 class AdminOrderItemsView(APIView):
-    """배송 상태 변경 화면에 띄울 목록. api-spec.md에 GET은 명시돼 있지 않지만 화면 구성상 필요해서 추가."""
+    """결제 관리 화면에 띄울 전체 주문 항목 목록. api-spec.md에 GET은 명시돼 있지 않지만 화면 구성상
+    필요해서 추가."""
 
     permission_classes = [IsAdmin]
 
@@ -262,7 +263,16 @@ class AdminOrderItemsView(APIView):
         return Response(AdminOrderItemSerializer(items, many=True).data)
 
 
+# 상품준비/배송중/배송완료는 이제 벤더 본인이 직접 관리한다(accounts.views.VendorOrderItemStatusView,
+# ADR-044). 관리자가 아무 벤더의 배송 상태나 바꿀 수 있던 예전 범위와 겹쳐서, 벤더 계정이 필수가 된
+# 지금은(ADR-048) 관리자는 결제 확인/정정(결제대기↔결제완료)만 하도록 좁힘 — "배송 관리"가 아니라
+# "결제 관리"가 됨. 상품준비 이후 단계는 여기서 손댈 수 없다(벤더 전담).
+_ADMIN_EDITABLE_STATUSES = {OrderItem.Status.PENDING, OrderItem.Status.PAID}
+
+
 class AdminOrderItemStatusView(APIView):
+    """결제 상태 정정 — 결제대기/결제완료 사이만 관리자가 직접 바꿀 수 있다."""
+
     permission_classes = [IsAdmin]
 
     def patch(self, request, pk):
@@ -270,13 +280,19 @@ class AdminOrderItemStatusView(APIView):
             item = OrderItem.objects.get(id=pk)
         except OrderItem.DoesNotExist:
             return Response({"error": "주문 항목을 찾을 수 없습니다."}, status=http_status.HTTP_404_NOT_FOUND)
+        if item.status not in _ADMIN_EDITABLE_STATUSES:
+            return Response(
+                {"error": "결제대기/결제완료 상태인 주문 항목만 여기서 바꿀 수 있습니다(그 이후 단계는 벤더가 직접 관리합니다)."},
+                status=http_status.HTTP_400_BAD_REQUEST,
+            )
 
         new_status = request.data.get("status")
-        if new_status not in OrderItem.Status.values:
-            raise ValidationError({"status": f"status는 {OrderItem.Status.values} 중 하나여야 합니다."})
+        if new_status not in {s.value for s in _ADMIN_EDITABLE_STATUSES}:
+            allowed = ", ".join(sorted(s.value for s in _ADMIN_EDITABLE_STATUSES))
+            raise ValidationError({"status": f"status는 {allowed} 중 하나여야 합니다."})
 
         item.status = new_status
-        item.save()
+        item.save(update_fields=["status"])
         return Response({"id": item.id, "status": item.status})
 
 

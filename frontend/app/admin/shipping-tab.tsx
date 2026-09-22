@@ -6,10 +6,8 @@ import { apiFetch } from "@/lib/api";
 import type { AdminOrderItem } from "@/lib/types";
 
 const STATUS_OPTIONS: { value: AdminOrderItem["status"]; label: string }[] = [
+  { value: "pending", label: "결제대기" },
   { value: "paid", label: "결제완료" },
-  { value: "preparing", label: "상품준비" },
-  { value: "shipping", label: "배송중" },
-  { value: "delivered", label: "배송완료" },
 ];
 
 const STATUS_LABEL: Record<AdminOrderItem["status"], string> = {
@@ -21,12 +19,13 @@ const STATUS_LABEL: Record<AdminOrderItem["status"], string> = {
   cancelled: "취소됨",
 };
 
-// 결제 전(pending)이거나 취소된(cancelled) 주문은 관리자가 배송 상태를 임의로 바꿀 수 없게 막는다.
-// pending은 아직 결제가 안 됐고, cancelled는 재고 복원까지 끝난 상태라 여기서 상태만 바꾸면
-// 실제 결제/재고 상태와 어긋나게 됨(취소는 반드시 /orders/{id}/cancel을 통해야 함).
-const EDITABLE_STATUSES = new Set(["paid", "preparing", "shipping", "delivered"]);
+// 상품준비/배송중/배송완료는 벤더 본인이 직접 관리한다(/vendor/dashboard "배송 관리" — 벤더 계정이
+// 필수가 된 뒤로 관리자 콘솔과 겹칠 이유가 없어져서 뺐음, ADR-048). 여기서는 결제대기↔결제완료
+// 정정만 — 취소됨(cancelled)은 여전히 /orders/{id}/cancel을 통해야 재고가 같이 복원되므로 제외.
+const EDITABLE_STATUSES = new Set(["pending", "paid"]);
 
-// 주문 항목별 배송 상태 변경. GET /admin/order-items(목록 조회는 화면 구성상 추가), PATCH /admin/order-items/{id}/status 연동.
+// 결제 상태 정정(결제대기↔결제완료). GET /admin/order-items(목록 조회는 화면 구성상 추가),
+// PATCH /admin/order-items/{id}/status 연동.
 export default function ShippingTab() {
   const [items, setItems] = useState<AdminOrderItem[] | null>(null);
 
