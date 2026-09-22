@@ -301,9 +301,21 @@ class VendorOrderItemStatusView(APIView):
 
 
 class CreatorListView(ListAPIView):
+    """공개 크리에이터 목록 — 고객용 크리에이터 탐색 페이지(/creators)에서 검색·카테고리 필터로 씀
+    (ADR-049). `q`는 핸들 부분 일치 검색, `category_id`는 정확히 그 카테고리인 크리에이터만."""
+
     permission_classes = [AllowAny]
     serializer_class = CreatorPublicSerializer
-    queryset = CreatorProfile.objects.filter(status=CreatorProfile.Status.APPROVED)
+
+    def get_queryset(self):
+        queryset = CreatorProfile.objects.filter(status=CreatorProfile.Status.APPROVED)
+        query = self.request.query_params.get("q")
+        if query:
+            queryset = queryset.filter(handle__icontains=query)
+        category_id = self.request.query_params.get("category_id")
+        if category_id:
+            queryset = queryset.filter(category_id=category_id)
+        return queryset
 
 
 class CreatorDetailView(RetrieveAPIView):

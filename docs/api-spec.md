@@ -168,6 +168,10 @@ ADR-030 참고.
 // response 200
 [ { "id": 3, "handle": "gil-dong", "category": "테크", "profile_image": "..." } ]
 ```
+쿼리 파라미터로 검색·필터 가능(ADR-049) — 고객용 크리에이터 탐색 페이지(`/creators`)에서 씀:
+- `q` — 핸들 부분 일치 검색(대소문자 무관), 예: `?q=gil`
+- `category_id` — 정확히 그 카테고리인 크리에이터만, 예: `?category_id=1`
+- 둘 다 안 주면 기존과 동일하게 승인된 크리에이터 전체.
 
 ### GET /creators/{id}
 **인증**: 없음
