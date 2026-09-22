@@ -101,7 +101,10 @@ export default function VendorDashboardPage() {
   // 크리에이터가 대시보드에서 수락/거절해야 실제로 연결된다(ADR-051).
   const handlePropose = async (product: VendorProduct) => {
     const state = proposal[product.id];
-    if (!state?.creatorId) return;
+    // 수수료율을 직접 입력해야만 제안할 수 있다 — 예전엔 비워두면 상품 기본 수수료율로 자동
+    // 채워졌는데, 그러면 "아직 아무것도 안 정했는데 이미 수수료율이 정해져 있다"고 오해하기 쉬웠음
+    // (실제로 그렇게 보였다는 지적을 받음) → ADR-052 참고.
+    if (!state?.creatorId || !state?.rate) return;
     setProposingId(product.id);
     setError(null);
     try {
@@ -109,7 +112,7 @@ export default function VendorDashboardPage() {
         method: "POST",
         body: JSON.stringify({
           creator_id: Number(state.creatorId),
-          commission_rate: state.rate ? Number(state.rate) : undefined,
+          commission_rate: Number(state.rate),
         }),
       });
       const updated = await apiFetch<VendorProduct>(`/vendor/products/${product.id}`);
@@ -534,7 +537,7 @@ export default function VendorDashboardPage() {
                               min={0}
                               max={100}
                               step="0.01"
-                              placeholder={`${p.commission_rate}%`}
+                              placeholder="수수료율"
                               value={proposal[p.id]?.rate ?? ""}
                               onChange={(e) =>
                                 setProposal((prev) => ({
@@ -546,7 +549,7 @@ export default function VendorDashboardPage() {
                             />
                             <button
                               onClick={() => handlePropose(p)}
-                              disabled={!proposal[p.id]?.creatorId || proposingId === p.id}
+                              disabled={!proposal[p.id]?.creatorId || !proposal[p.id]?.rate || proposingId === p.id}
                               className="rounded-lg border border-black/10 px-2 py-1 text-xs font-medium text-foreground/70 transition-colors hover:bg-black/5 disabled:opacity-50"
                             >
                               제안

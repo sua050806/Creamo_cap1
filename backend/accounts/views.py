@@ -252,9 +252,14 @@ class VendorRecommendationsView(APIView):
                 {"error": "존재하지 않거나 승인되지 않은 크리에이터입니다."}, status=status.HTTP_404_NOT_FOUND
             )
 
+        # 상품 기본 수수료율로 조용히 채워주지 않는다 — 벤더가 명시적으로 정한 값만 받는다.
+        # 생략 시 자동 채워지면 "아직 아무것도 안 정했는데 이미 정해져 있다"는 오해를 부름(실제로
+        # 그렇게 보인다는 지적을 받음) → ADR-052 참고.
+        commission_rate = request.data.get("commission_rate")
+        if commission_rate is None:
+            raise ValidationError({"commission_rate": "수수료율을 입력해야 합니다."})
         try:
-            commission_rate = request.data.get("commission_rate")
-            commission_rate = float(commission_rate) if commission_rate is not None else float(product.commission_rate)
+            commission_rate = float(commission_rate)
         except (TypeError, ValueError):
             raise ValidationError({"commission_rate": "숫자여야 합니다."})
 
