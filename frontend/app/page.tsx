@@ -91,10 +91,23 @@ export default async function Home() {
       </section>
 
       <section className="mt-14">
-        <h1 className="text-2xl font-semibold">추천 크리에이터</h1>
-        <p className="mt-1 mb-6 text-sm text-foreground/60">
-          마음에 드는 크리에이터를 팔로우하고, 그들이 추천하는 상품을 만나보세요.
-        </p>
+        <div className="flex items-end justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold">추천 크리에이터</h1>
+            <p className="mt-1 mb-6 text-sm text-foreground/60">
+              마음에 드는 크리에이터를 팔로우하고, 그들이 추천하는 상품을 만나보세요.
+            </p>
+          </div>
+          {/* 헤더에 있던 "크리에이터" 링크를 여기로 옮김 — 로그인한 크리에이터에게 "크리에이터
+              대시보드"와 나란히 떠서 헷갈렸고, 헤더 자체도 항목이 많아 복잡해 보였음(사용자 지적) →
+              ADR-050 참고. 캐러셀이 일부만 보여주니 "전체보기"가 자연스러운 도착지. */}
+          <Link
+            href="/creators"
+            className="shrink-0 text-sm text-foreground/50 transition-colors hover:text-foreground"
+          >
+            전체보기 →
+          </Link>
+        </div>
 
         {creators.length === 0 ? (
           <p className="text-sm text-foreground/40">아직 승인된 크리에이터가 없습니다.</p>

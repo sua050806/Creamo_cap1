@@ -57,12 +57,6 @@ export default function Header() {
               카테고리
             </Link>
             <Link
-              href="/creators"
-              className="transition-colors hover:text-foreground"
-            >
-              크리에이터
-            </Link>
-            <Link
               href="/cart"
               className="transition-colors hover:text-foreground"
             >
