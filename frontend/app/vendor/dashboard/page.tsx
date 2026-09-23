@@ -5,7 +5,14 @@ import Link from "next/link";
 import StatusTag from "@/components/StatusTag";
 import { useAuth } from "@/lib/auth-context";
 import { apiFetch, resolveMediaUrl } from "@/lib/api";
-import type { AdminOrderItem, AdminSettlement, ApiCategory, ApiCreator, VendorProduct } from "@/lib/types";
+import type {
+  AdminOrderItem,
+  AdminSettlement,
+  AdminSettlementGenerateResponse,
+  ApiCategory,
+  ApiCreator,
+  VendorProduct,
+} from "@/lib/types";
 
 const RECOMMENDATION_STATUS_LABEL: Record<string, string> = {
   pending: "제안함",
@@ -74,6 +81,8 @@ export default function VendorDashboardPage() {
   const [categories, setCategories] = useState<ApiCategory[]>([]);
   const [settlements, setSettlements] = useState<AdminSettlement[] | null>(null);
   const [orderItems, setOrderItems] = useState<AdminOrderItem[] | null>(null);
+  const [generating, setGenerating] = useState(false);
+  const [generateMessage, setGenerateMessage] = useState<string | null>(null);
   const [creators, setCreators] = useState<ApiCreator[]>([]);
   const [proposal, setProposal] = useState<Record<number, { creatorId: string; rate: string }>>({});
   const [proposingId, setProposingId] = useState<number | null>(null);
@@ -136,6 +145,28 @@ export default function VendorDashboardPage() {
           )
         : prev
     );
+  };
+
+  // 본인 몫 정산 계산 트리거 — 실제 지급(승인)은 여전히 관리자만 하지만, 배송완료된 실제 주문
+  // 데이터로 정산액을 계산하는 것 자체는 벤더가 요청할 수 있어야 한다는 지적으로 추가(ADR-053).
+  const handleGenerateSettlements = async () => {
+    setGenerating(true);
+    setGenerateMessage(null);
+    try {
+      const result = await apiFetch<AdminSettlementGenerateResponse>("/vendor/settlements/generate", {
+        method: "POST",
+      });
+      setGenerateMessage(
+        result.created > 0 ? `정산 ${result.created}건을 계산했습니다.` : "새로 계산할 정산 내역이 없습니다."
+      );
+      if (result.created > 0) {
+        setSettlements((prev) => (prev ? [...result.settlements, ...prev] : result.settlements));
+      }
+    } catch {
+      setGenerateMessage("정산 계산에 실패했습니다.");
+    } finally {
+      setGenerating(false);
+    }
   };
 
   const handleOrderItemStatusChange = async (item: AdminOrderItem, newStatus: AdminOrderItem["status"]) => {
@@ -427,6 +458,11 @@ export default function VendorDashboardPage() {
 
         <div>
           <h2 className="mb-3 text-sm font-medium text-foreground/50">내 상품</h2>
+          {/* 상품 등록 시 넣는 기본 수수료율(Product.commission_rate)은 이 표에서 일부러 안 보여준다
+              — 실제 커미션은 이제 크리에이터별로 따로 제안·협의하는 값(추천 크리에이터 칸의
+              commission_rate)이라, 상품 하나에 고정된 수수료율이 표에 떡하니 있으면 "이미 정해진
+              값"처럼 보여서 헷갈린다는 지적을 받음(ADR-053). 필드 자체는 지우지 않음 — 관리자 직접
+              연결 등 다른 경로에서 여전히 쓰임. */}
           {products === null ? (
             <p className="text-sm text-foreground/40">불러오는 중...</p>
           ) : products.length === 0 ? (
@@ -440,7 +476,6 @@ export default function VendorDashboardPage() {
                     <th className="px-4 py-3 font-medium text-foreground/50">상품명</th>
                     <th className="px-4 py-3 font-medium text-foreground/50">카테고리</th>
                     <th className="px-4 py-3 font-medium text-foreground/50">가격</th>
-                    <th className="px-4 py-3 font-medium text-foreground/50">수수료율</th>
                     <th className="px-4 py-3 font-medium text-foreground/50">상태</th>
                     <th className="px-4 py-3 font-medium text-foreground/50">추천 크리에이터</th>
                   </tr>
@@ -475,7 +510,6 @@ export default function VendorDashboardPage() {
                       <td className="px-4 py-3 font-medium">{p.name}</td>
                       <td className="px-4 py-3 text-foreground/60">{p.category_name}</td>
                       <td className="px-4 py-3">{p.price.toLocaleString()}원</td>
-                      <td className="px-4 py-3">{p.commission_rate}%</td>
                       <td className="px-4 py-3">
                         <select
                           value={p.status}
@@ -624,6 +658,20 @@ export default function VendorDashboardPage() {
 
         <div>
           <h2 className="mb-3 text-sm font-medium text-foreground/50">내 정산 내역</h2>
+          <div className="mb-4 flex items-center gap-3">
+            <button
+              onClick={handleGenerateSettlements}
+              disabled={generating}
+              className="rounded-full border border-black/10 px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-black/5 disabled:opacity-50"
+            >
+              {generating ? "계산 중..." : "정산 계산"}
+            </button>
+            {generateMessage && <p className="text-xs text-foreground/50">{generateMessage}</p>}
+          </div>
+          <p className="mb-3 text-xs text-foreground/40">
+            배송완료된 본인 상품 주문 중 아직 계산 안 된 것만 계산합니다. 실제 지급 승인은 관리자가
+            진행합니다.
+          </p>
           {settlements === null ? (
             <p className="text-sm text-foreground/40">불러오는 중...</p>
           ) : settlements.length === 0 ? (

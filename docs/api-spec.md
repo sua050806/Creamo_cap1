@@ -440,6 +440,20 @@ API는 아직 없음(크리에이터의 `GET /creators/{id}`와 대칭되는 것
     "period_start": "2026-09-14", "period_end": "2026-09-17", "status": "pending", "approved_at": null } ]
 ```
 
+### POST /vendor/settlements/generate
+**인증**: role=vendor이고 VendorProfile.status=active인 본인만 (ADR-053) — 본인 상품이 포함된
+배송완료·미정산 주문으로만 범위를 좁혀서 정산을 계산한다. `POST /admin/settlements/generate`와
+계산 로직은 완전히 같음(`settlements/services.py`의 `generate_settlements()` 공유) — "정산 생성을
+왜 관리자만 하냐"는 지적으로 벤더도 본인 몫은 직접 계산 요청할 수 있게 함. 이 계산에 딸린 크리에이터
+커미션도 같이 생성된다(벤더 몫·크리에이터 몫이 같은 주문 항목에서 나오는 한 쌍이라 분리 불가).
+```json
+// response 200 (POST /admin/settlements/generate와 동일한 형태)
+{ "created": 1, "settlements": [ { "id": 11, "target_type": "vendor", "target_id": 1, ... } ] }
+```
+실제 지급 승인(`POST /admin/settlements`)은 여전히 관리자 전용 — 결제가 플랫폼의 계좌 하나로만
+들어오는 구조(`PORTONE_STORE_ID`가 전역 설정 하나뿐)라 벤더·크리에이터가 그 돈에 직접 접근할 방법이
+없기 때문.
+
 ### GET /vendor/order-items, PATCH /vendor/order-items/{id}/status
 **인증**: role=vendor이고 VendorProfile.status=active인 본인만 (ADR-044)
 ```json

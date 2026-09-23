@@ -16,6 +16,7 @@ from catalog.models import Product
 from orders.models import OrderItem
 from recommendations.models import CreatorRecommendation
 from settlements.models import Settlement
+from settlements.services import generate_settlements
 from vendors.models import VendorProfile
 
 from .models import CreatorProfile, User
@@ -317,6 +318,26 @@ class VendorSettlementsView(APIView):
             target_type=Settlement.TargetType.VENDOR, target_id=request.user.vendor_profile.id
         ).order_by("-period_end")
         return Response(AdminSettlementSerializer(settlements, many=True).data)
+
+
+class VendorSettlementGenerateView(APIView):
+    """본인(벤더) 몫만 정산 계산을 트리거 — "정산 생성을 왜 관리자만 하냐, 벤더가 본인 몫은 직접
+    계산 요청해야 하는 거 아니냐"는 지적으로 추가(ADR-053). `settlements.services.generate_settlements`
+    를 본인 벤더로 스코프를 좁혀서 재사용 — 로직은 관리자용과 완전히 같고(실제 배송완료 주문 데이터로
+    계산), 대상만 본인 상품이 포함된 주문으로 제한된다.
+
+    이 계산에 딸린 크리에이터 커미션도 같이 생성됨(벤더 몫·크리에이터 몫이 같은 주문 항목에서 나오는
+    한 쌍이라 분리 계산이 불가능 — 무선이어폰 하나 팔리면 그 39,000원 중 벤더 몫과 크리에이터 몫이
+    동시에 정해짐). 실제 지급 승인(`POST /admin/settlements`)은 여전히 관리자만 할 수 있다 — 돈이
+    플랫폼의 결제 계좌 하나로만 들어오고(PORTONE_STORE_ID가 전역 설정 하나) 벤더·크리에이터는 그
+    돈에 직접 접근할 방법이 없어서, "계산"은 벤더가 트리거해도 "실제 지급 확정"은 그 돈을 쥐고 있는
+    쪽(관리자)만 할 수 있는 게 맞다고 판단."""
+
+    permission_classes = [IsApprovedVendor]
+
+    def post(self, request):
+        created = generate_settlements(vendor=request.user.vendor_profile)
+        return Response({"created": len(created), "settlements": AdminSettlementSerializer(created, many=True).data})
 
 
 # 관리자가 결제 확인 직후 상태(paid)로 되돌릴 일은 거의 없지만, AdminOrderItemStatusView와 동일하게

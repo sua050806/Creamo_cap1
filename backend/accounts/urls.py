@@ -23,6 +23,7 @@ from .views import (
     VendorProductStatusView,
     VendorProfileCreateView,
     VendorRecommendationsView,
+    VendorSettlementGenerateView,
     VendorSettlementsView,
     VerifyCodeView,
 )
@@ -54,6 +55,7 @@ urlpatterns = [
         VendorRecommendationsView.as_view(),
     ),
     path("vendor/settlements", VendorSettlementsView.as_view()),
+    path("vendor/settlements/generate", VendorSettlementGenerateView.as_view()),
     path("vendor/order-items", VendorOrderItemsView.as_view()),
     path("vendor/order-items/<int:pk>/status", VendorOrderItemStatusView.as_view()),
 ]
