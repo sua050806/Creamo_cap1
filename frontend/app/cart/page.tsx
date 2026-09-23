@@ -61,7 +61,7 @@ export default function CartPage() {
 
   if (isLoading) {
     return (
-      <main className="flex-1 px-6 py-8">
+      <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-8">
         <p className="text-sm text-foreground/40">불러오는 중...</p>
       </main>
     );
@@ -69,7 +69,7 @@ export default function CartPage() {
 
   if (!user) {
     return (
-      <main className="flex-1 px-6 py-12">
+      <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-12">
         <div className="mx-auto max-w-sm rounded-2xl border border-black/5 bg-white p-6 text-center shadow-sm">
           <p className="mb-4 text-sm text-foreground/60">로그인 후 이용할 수 있습니다.</p>
           <Link href="/login" className={buttonClass}>
@@ -81,7 +81,7 @@ export default function CartPage() {
   }
 
   return (
-    <main className="flex-1 px-6 py-8">
+    <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-8">
       <h1 className="mb-6 text-2xl font-semibold">장바구니</h1>
 
       {cart === null ? (

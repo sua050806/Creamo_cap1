@@ -61,7 +61,7 @@ export default function VendorApplyPage() {
 
   if (isLoading) {
     return (
-      <main className="flex-1 px-6 py-12">
+      <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-12">
         <p className="text-sm text-foreground/40">불러오는 중...</p>
       </main>
     );
@@ -69,7 +69,7 @@ export default function VendorApplyPage() {
 
   if (!user) {
     return (
-      <main className="flex-1 px-6 py-12">
+      <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-12">
         <div className="mx-auto max-w-sm rounded-2xl border border-black/5 bg-white p-6 text-center shadow-sm">
           <p className="mb-4 text-sm text-foreground/60">로그인 후 이용할 수 있습니다.</p>
           <Link href="/login" className={buttonClass}>
@@ -82,7 +82,7 @@ export default function VendorApplyPage() {
 
   if (user.role !== "vendor") {
     return (
-      <main className="flex-1 px-6 py-12">
+      <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-12">
         <p className="text-sm text-foreground/60">벤더로 가입한 계정만 신청서를 작성할 수 있습니다.</p>
       </main>
     );
@@ -93,7 +93,7 @@ export default function VendorApplyPage() {
   if (submitted || existingProfile) {
     const status = submitted ? "pending" : existingProfile!.status;
     return (
-      <main className="flex-1 px-6 py-12">
+      <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-12">
         <div className="mx-auto max-w-sm">
           <h1 className="mb-6 text-2xl font-semibold">벤더 신청</h1>
           <div className="flex flex-col items-center gap-4 rounded-2xl border border-black/5 bg-white px-8 py-10 text-center shadow-sm">
@@ -119,7 +119,7 @@ export default function VendorApplyPage() {
   }
 
   return (
-    <main className="flex-1 px-6 py-12">
+    <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-12">
       <div className="mx-auto max-w-sm">
         <h1 className="mb-6 text-2xl font-semibold">벤더 신청서 작성</h1>
         <form

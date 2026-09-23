@@ -29,14 +29,14 @@ export default async function ProductDetailPage({
 
   if (!product) {
     return (
-      <main className="flex-1 px-6 py-8">
+      <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-8">
         <p className="text-sm text-foreground/60">상품을 찾을 수 없습니다. (#{id})</p>
       </main>
     );
   }
 
   return (
-    <main className="flex-1 px-6 py-8">
+    <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-8">
       <div className="mx-auto max-w-3xl">
         <div className="grid gap-8 sm:grid-cols-2">
           {product.thumbnail ? (

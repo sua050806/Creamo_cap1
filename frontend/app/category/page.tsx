@@ -7,7 +7,7 @@ import CategoryContent from "./category-content";
 // Suspense로 감싼다(Next.js 요구사항).
 export default function CategoryPage() {
   return (
-    <main className="flex-1 px-6 py-8">
+    <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-8">
       <Suspense fallback={null}>
         <CategoryContent />
       </Suspense>

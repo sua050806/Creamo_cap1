@@ -50,7 +50,7 @@ export default function CheckoutPage() {
   return (
     <Suspense
       fallback={
-        <main className="flex-1 px-6 py-12">
+        <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-12">
           <p className="text-sm text-foreground/40">불러오는 중...</p>
         </main>
       }
@@ -184,7 +184,7 @@ function CheckoutContent() {
 
   if (isLoading) {
     return (
-      <main className="flex-1 px-6 py-12">
+      <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-12">
         <p className="text-sm text-foreground/40">불러오는 중...</p>
       </main>
     );
@@ -192,7 +192,7 @@ function CheckoutContent() {
 
   if (!user) {
     return (
-      <main className="flex-1 px-6 py-12">
+      <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-12">
         <div className="mx-auto max-w-sm rounded-2xl border border-black/5 bg-white p-6 text-center shadow-sm">
           <p className="mb-4 text-sm text-foreground/60">로그인 후 이용할 수 있습니다.</p>
           <Link href="/login" className={buttonClass}>
@@ -204,7 +204,7 @@ function CheckoutContent() {
   }
 
   return (
-    <main className="flex-1 px-6 py-8">
+    <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-8">
       <Script src="https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js" strategy="afterInteractive" />
 
       <div className="mx-auto max-w-2xl">

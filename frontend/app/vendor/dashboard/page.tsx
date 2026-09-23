@@ -277,7 +277,7 @@ export default function VendorDashboardPage() {
 
   if (isLoading) {
     return (
-      <main className="flex-1 px-6 py-12">
+      <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-12">
         <p className="text-sm text-foreground/40">불러오는 중...</p>
       </main>
     );
@@ -285,7 +285,7 @@ export default function VendorDashboardPage() {
 
   if (!user) {
     return (
-      <main className="flex-1 px-6 py-12">
+      <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-12">
         <div className="mx-auto max-w-sm rounded-2xl border border-black/5 bg-white p-6 text-center shadow-sm">
           <p className="mb-4 text-sm text-foreground/60">로그인 후 이용할 수 있습니다.</p>
           <Link
@@ -301,7 +301,7 @@ export default function VendorDashboardPage() {
 
   if (user.role !== "vendor") {
     return (
-      <main className="flex-1 px-6 py-12">
+      <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-12">
         <p className="text-sm text-foreground/60">벤더 계정만 볼 수 있는 페이지입니다.</p>
       </main>
     );
@@ -309,7 +309,7 @@ export default function VendorDashboardPage() {
 
   if (!isApprovedVendor) {
     return (
-      <main className="flex-1 px-6 py-12">
+      <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-12">
         <div className="mx-auto max-w-sm">
           <h1 className="mb-6 text-2xl font-semibold">벤더 대시보드</h1>
           <div className="flex flex-col items-center gap-4 rounded-2xl border border-black/5 bg-white px-8 py-10 text-center shadow-sm">
@@ -338,7 +338,7 @@ export default function VendorDashboardPage() {
   }
 
   return (
-    <main className="flex-1 px-6 py-8">
+    <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-8">
       <h1 className="mb-6 text-2xl font-semibold">벤더 대시보드</h1>
 
       <div className="space-y-8">

@@ -39,7 +39,7 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="flex-1 px-6 py-12">
+    <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-12">
       <div className="mx-auto max-w-sm">
         <h1 className="mb-6 text-2xl font-semibold">로그인</h1>
 

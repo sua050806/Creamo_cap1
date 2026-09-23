@@ -29,7 +29,7 @@ export default async function CreatorProfilePage({
 
   if (!creator) {
     return (
-      <main className="flex-1 px-6 py-8">
+      <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-8">
         <p className="text-sm text-foreground/60">크리에이터를 찾을 수 없습니다. (#{id})</p>
       </main>
     );
@@ -39,7 +39,7 @@ export default async function CreatorProfilePage({
   const gradient = AVATAR_GRADIENTS[creator.handle.charCodeAt(0) % AVATAR_GRADIENTS.length];
 
   return (
-    <main className="flex-1 px-6 py-8">
+    <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-8">
       <div className="mx-auto max-w-3xl">
         <div className="flex items-center gap-5 rounded-2xl border border-black/5 bg-white p-6 shadow-sm">
           {creator.profile_image ? (

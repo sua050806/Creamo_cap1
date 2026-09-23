@@ -43,7 +43,7 @@ export default function CreatorsPage() {
   }, [query, categoryId]);
 
   return (
-    <main className="flex-1 px-6 py-8">
+    <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-8">
       <h1 className="mb-1 text-2xl font-semibold">크리에이터 찾기</h1>
       <p className="mb-6 text-sm text-foreground/60">
         핸들이나 관심 카테고리로 크리에이터를 검색해보세요.
