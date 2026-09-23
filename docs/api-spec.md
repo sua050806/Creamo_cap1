@@ -649,6 +649,20 @@ API는 원래부터 이 두 경우(진짜 크리에이터가 아님 / creator인
 // response 200 (위 requests 항목과 같은 형태, status/responded_at 갱신됨)
 ```
 
+### GET /creator/dashboard/settlements
+**인증**: role=creator(승인)만 — 본인 정산 내역(`VendorSettlementsView`와 완전히 같은 패턴, ADR-054).
+```json
+// response 200 (AdminSettlement와 동일한 형태, target_type=creator & target_id=본인으로 필터링)
+[ { "id": 12, "target_type": "creator", "target_id": 1, "target_name": "kim-creator", "amount": 1950,
+    "period_start": "2026-09-23", "period_end": "2026-09-23", "status": "pending", "approved_at": null } ]
+```
+`GET /creator/dashboard/stats`의 `commission_pending`은 아직 배송 안 끝난 주문까지 포함한 실시간
+추정치일 뿐이고, 이 엔드포인트가 실제로 생성·승인된 정산(`Settlement`) 자체다 — "크리에이터는 정산
+승인 여부를 어떻게 확인하냐"는 질문으로 추가, 그 전까진 크리에이터 쪽에 이게 아예 없었음(벤더는
+ADR-043부터 있었는데 크리에이터만 빠져있던 비대칭). 크리에이터 본인이 정산 계산을 트리거하는 API는
+없음 — 벤더가(`POST /vendor/settlements/generate`) 또는 관리자가 계산을 트리거하면, 그 계산에 딸린
+크리에이터 커미션도 같이 생성되어 여기서 보인다.
+
 ### PATCH /admin/products/{id}
 **인증**: 역할: admin — 등록된 상품 수정용, 주로 이미지 업로드/교체가 목적. 문서에는 없었지만(원래
 GET/POST만 명시) 시드 데이터로 만들어져 이미지가 없는 상품에도 나중에 이미지를 붙일 방법이 필요해서

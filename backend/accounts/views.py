@@ -498,6 +498,21 @@ class CreatorDashboardProductsView(APIView):
         return Response(data)
 
 
+class CreatorSettlementsView(APIView):
+    """본인(크리에이터) 정산 내역 조회 — VendorSettlementsView와 완전히 같은 패턴. 지금까지 크리에이터
+    쪽엔 이게 없어서 "정산 예정액"(실시간 추정치, CreatorDashboardStatsView)만 볼 수 있었는데, 실제로
+    생성·승인된 정산 자체(승인 대기/승인/완료 상태)는 확인할 방법이 없었음 — "크리에이터는 정산 승인
+    여부를 어떻게 확인하냐"는 질문으로 추가(ADR-054)."""
+
+    permission_classes = [IsApprovedCreator]
+
+    def get(self, request):
+        settlements = Settlement.objects.filter(
+            target_type=Settlement.TargetType.CREATOR, target_id=request.user.creator_profile.id
+        ).order_by("-period_end")
+        return Response(AdminSettlementSerializer(settlements, many=True).data)
+
+
 class CreatorRecommendationRequestsView(ListAPIView):
     """벤더로부터 받은 추천 제안 목록 — 본인 것만, 상태(대기/수락/거절) 무관 전체 이력을 보여주고
     프론트에서 대기중인 것만 수락/거절 버튼을 노출한다(ADR-051)."""

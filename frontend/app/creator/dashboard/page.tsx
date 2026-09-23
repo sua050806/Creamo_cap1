@@ -7,6 +7,7 @@ import StatusTag from "@/components/StatusTag";
 import { useAuth } from "@/lib/auth-context";
 import { apiFetch, resolveMediaUrl } from "@/lib/api";
 import type {
+  AdminSettlement,
   CreatorDashboardProduct,
   CreatorDashboardStats,
   CreatorRecommendationRequest,
@@ -24,10 +25,16 @@ const REQUEST_STATUS_LABEL: Record<string, string> = {
   rejected: "거절됨",
 };
 
+const SETTLEMENT_STATUS_LABEL: Record<AdminSettlement["status"], string> = {
+  pending: "대기",
+  approved: "승인",
+  completed: "완료",
+};
+
 // 크리에이터 대시보드: 벤더가 보낸 추천 제안(수락/거절), 판매수·누적 커미션·정산 예정액, 추천 상품별
-// 성과. 미승인 크리에이터는 스펙 2.2대로 "심사 중" 화면만 노출하고 실제 데이터는 보여주지 않는다.
-// GET /creator/dashboard/stats, /products, /requests 연동(role=creator 승인 상태만 접근 가능) →
-// ADR-051 참고(제안 목록·수락/거절은 이번에 추가됨).
+// 성과, 정산 내역. 미승인 크리에이터는 스펙 2.2대로 "심사 중" 화면만 노출하고 실제 데이터는 보여주지
+// 않는다. GET /creator/dashboard/stats, /products, /requests, /settlements 연동(role=creator 승인
+// 상태만 접근 가능) → ADR-051(제안 목록), ADR-054(정산 내역) 참고.
 export default function CreatorDashboardPage() {
   const { user, isLoading } = useAuth();
   const [stats, setStats] = useState<CreatorDashboardStats | null>(null);
@@ -36,6 +43,7 @@ export default function CreatorDashboardPage() {
   );
   const [requests, setRequests] = useState<CreatorRecommendationRequest[] | null>(null);
   const [respondingId, setRespondingId] = useState<number | null>(null);
+  const [settlements, setSettlements] = useState<AdminSettlement[] | null>(null);
 
   const isApprovedCreator =
     user?.role === "creator" && user.creator_profile?.status === "approved";
@@ -51,6 +59,9 @@ export default function CreatorDashboardPage() {
     apiFetch<CreatorRecommendationRequest[]>("/creator/dashboard/requests")
       .then(setRequests)
       .catch(() => setRequests([]));
+    apiFetch<AdminSettlement[]>("/creator/dashboard/settlements")
+      .then(setSettlements)
+      .catch(() => setSettlements([]));
   }, [isApprovedCreator]);
 
   const respond = async (request: CreatorRecommendationRequest, decision: "accept" | "reject") => {
@@ -264,6 +275,44 @@ export default function CreatorDashboardPage() {
                   <td className="px-4 py-3">{p.sales_count}개</td>
                   <td className="px-4 py-3">
                     {p.commission_total.toLocaleString()}원
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <h2 className="mt-10 mb-3 text-sm font-medium text-foreground/50">
+        내 정산 내역
+      </h2>
+      <p className="mb-3 text-xs text-foreground/40">
+        위 "정산 예정액"은 아직 배송이 끝나지 않은 주문까지 포함한 실시간 추정치이고, 아래 목록이
+        실제로 생성·승인된 정산입니다.
+      </p>
+      {settlements === null ? (
+        <p className="text-sm text-foreground/40">불러오는 중...</p>
+      ) : settlements.length === 0 ? (
+        <p className="text-sm text-foreground/40">정산 내역이 없습니다.</p>
+      ) : (
+        <div className="max-w-2xl overflow-hidden rounded-2xl border border-black/5 bg-white shadow-sm">
+          <table className="w-full border-collapse text-sm">
+            <thead>
+              <tr className="border-b border-black/10 text-left">
+                <th className="px-4 py-3 font-medium text-foreground/50">금액</th>
+                <th className="px-4 py-3 font-medium text-foreground/50">정산 기간</th>
+                <th className="px-4 py-3 font-medium text-foreground/50">상태</th>
+              </tr>
+            </thead>
+            <tbody>
+              {settlements.map((s) => (
+                <tr key={s.id} className="border-b border-black/5 last:border-0">
+                  <td className="px-4 py-3 font-medium">{s.amount.toLocaleString()}원</td>
+                  <td className="px-4 py-3 text-foreground/60">
+                    {s.period_start} ~ {s.period_end}
+                  </td>
+                  <td className="px-4 py-3">
+                    <StatusTag status={SETTLEMENT_STATUS_LABEL[s.status]} />
                   </td>
                 </tr>
               ))}
