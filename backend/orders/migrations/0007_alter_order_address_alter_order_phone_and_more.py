@@ -4,6 +4,22 @@ from django.conf import settings
 from django.db import migrations, models
 
 
+def fill_blank_shipping_fields(apps, schema_editor):
+    # 0002에서 만든 데모 주문은 배송지 필드(0006)가 생기기 전에 만들어져서 값이 비어 있다.
+    # 아래 "배송지 필수" 제약과 0008의 전화번호 형식 제약을 통과하도록 먼저 데모 값을 채운다.
+    # (빈 DB에서 처음부터 migrate할 때 여기서 IntegrityError가 나던 문제 — Render 배포 중 발견)
+    Order = apps.get_model("orders", "Order")
+    blank_orders = Order.objects.filter(recipient_name="") | Order.objects.filter(phone="") | Order.objects.filter(address="")
+    for order in blank_orders:
+        if order.recipient_name == "":
+            order.recipient_name = "데모 구매자"
+        if order.phone == "":
+            order.phone = "010-0000-0000"
+        if order.address == "":
+            order.address = "서울특별시 데모구 데모로 1"
+        order.save(update_fields=["recipient_name", "phone", "address"])
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -12,6 +28,7 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
+        migrations.RunPython(fill_blank_shipping_fields, migrations.RunPython.noop),
         migrations.AlterField(
             model_name='order',
             name='address',

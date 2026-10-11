@@ -3,12 +3,31 @@
 import django.db.models.deletion
 from django.conf import settings
 from django.db import migrations, models
+from django.contrib.auth.hashers import make_password
+
+
+def backfill_vendor_accounts(apps, schema_editor):
+    # 시드 벤더(catalog/0003)는 user 필드가 생기기 전에 만들어져서 계정이 없다. 로컬에서는
+    # backfill_vendor_accounts 명령으로 계정을 붙였지만, 빈 DB에서 처음부터 migrate하면 그 명령을
+    # 돌릴 틈이 없어 0004(user NOT NULL)에서 IntegrityError가 남 — Render 배포 중 발견.
+    # 명령과 같은 규칙(vendor{id}@creamo.local / vendor1234)으로 여기서 계정을 만들어 붙인다.
+    User = apps.get_model("accounts", "User")
+    VendorProfile = apps.get_model("vendors", "VendorProfile")
+    legacy_vendors = VendorProfile.objects.filter(user__isnull=True).order_by("id")
+    for vendor in legacy_vendors:
+        email = "vendor" + str(vendor.id) + "@creamo.local"
+        user = User(username=email, email=email, name=vendor.name, role="vendor")
+        user.password = make_password("vendor1234")
+        user.save()
+        vendor.user = user
+        vendor.save(update_fields=["user"])
 
 
 class Migration(migrations.Migration):
 
     dependencies = [
         ('vendors', '0002_vendor_status_active_suspended'),
+        ('accounts', '0004_alter_user_role'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
@@ -33,4 +52,5 @@ class Migration(migrations.Migration):
             name='status',
             field=models.CharField(choices=[('pending', '승인대기'), ('active', '활성'), ('suspended', '판매중단'), ('rejected', '반려')], default='active', max_length=10),
         ),
+        migrations.RunPython(backfill_vendor_accounts, migrations.RunPython.noop),
     ]
