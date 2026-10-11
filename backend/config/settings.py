@@ -193,11 +193,6 @@ EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
 EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 
-# Redis 연결 정보. 이번 이메일 인증 기능 전에는 docker-compose에만 떠 있고 실제로 쓰는 코드가
-# 없었음(ADR-039 참고) — accounts/verification.py에서 이메일 인증코드 저장·조회에 사용.
-REDIS_HOST = os.environ.get('REDIS_HOST', 'localhost')
-REDIS_PORT = int(os.environ.get('REDIS_PORT', '6379'))
-
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
